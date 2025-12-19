@@ -1,322 +1,322 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>For You</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Our Little World</title>
+
     <style>
-        * {
-            -webkit-tap-highlight-color: transparent;
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         body {
             margin: 0;
-            padding: 0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            background: #0a0a0a;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            overflow: hidden;
+            height: 100vh;
+            background: radial-gradient(circle at top, #1a0f1f, #050507);
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             color: white;
-            transition: background 1.5s ease;
+            overflow: hidden;
         }
 
-        /* Loading Screen */
-        #preloader {
-            position: fixed;
+        /* ---------- STAGES ---------- */
+        .stage {
+            display: none;
+            position: absolute;
             inset: 0;
-            background: #0a0a0a;
-            display: flex;
             justify-content: center;
             align-items: center;
-            z-index: 100;
-            transition: opacity 0.5s ease;
-        }
-
-        .heart-loader {
-            width: 50px;
-            height: 50px;
-            background: #ff4d4d;
-            transform: rotate(45deg);
-            animation: pulse 1.2s infinite;
-        }
-        .heart-loader::before, .heart-loader::after {
-            content: "";
-            width: 50px; height: 50px;
-            background: #ff4d4d;
-            border-radius: 50%;
-            position: absolute;
-        }
-        .heart-loader::before { left: -25px; }
-        .heart-loader::after { top: -25px; }
-
-        @keyframes pulse {
-            0% { transform: rotate(45deg) scale(0.8); }
-            50% { transform: rotate(45deg) scale(1.1); }
-            100% { transform: rotate(45deg) scale(0.8); }
-        }
-
-        /* Main Content */
-        .container {
-            opacity: 0;
-            transition: opacity 1s ease;
-            position: relative;
-            width: 90vw;
-            max-width: 350px;
-            display: flex;
             flex-direction: column;
-            align-items: center;
+            text-align: center;
         }
 
-        .card {
-            position: relative;
-            width: 100%;
-            aspect-ratio: 1 / 1;
-            border-radius: 24px;
+        .stage.active {
+            display: flex;
+            animation: fadeIn 1s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* ---------- FADE OUT ---------- */
+        .fade-out {
+            animation: fadeOut 4s forwards;
+        }
+
+        @keyframes fadeOut {
+            to { opacity: 0; }
+        }
+
+        /* ---------- LOADING ---------- */
+        .city { position: absolute; font-size: 1.2rem; }
+        #delhi { left: 15%; top: 50%; }
+        #mumbai { right: 15%; top: 50%; }
+
+        .path {
+            position: absolute;
+            top: 53%;
+            left: 18%;
+            width: 64%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #ff6b81, transparent);
+        }
+
+        .heart {
+            position: absolute;
+            top: 47%;
+            left: 18%;
+            font-size: 26px;
+            animation: travel 3s ease-in-out forwards;
+        }
+
+        @keyframes travel {
+            0% { left: 18%; }
+            100% { left: 82%; }
+        }
+
+        /* ---------- LOVE ---------- */
+        #tapHeart { font-size: 90px; cursor: pointer; }
+
+        .meter {
+            width: 240px;
+            height: 16px;
+            background: #222;
+            border-radius: 20px;
             overflow: hidden;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 77, 77, 0.2);
-            background: #1a1a1a;
+            margin-top: 20px;
         }
 
-        #hiddenImage {
+        .fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg,#ff4d4d,#ff9aa2);
+            transition: width 0.3s;
+        }
+
+        /* ---------- SCRATCH ---------- */
+        .card {
+            width: 280px;
+            height: 280px;
+            position: relative;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .card img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            display: block;
-            pointer-events: none;
         }
 
         canvas {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             touch-action: none;
-            cursor: crosshair;
-            transition: opacity 1.2s ease-out;
         }
 
-        .message-container {
-            margin-top: 30px;
-            text-align: center;
-            width: 100%;
-            padding: 0 20px;
-        }
-
-        #loveMessage {
-            font-size: 1.1rem;
-            line-height: 1.6;
-            color: #ffcccc;
+        /* ---------- TEXT ---------- */
+        #revealText {
+            margin-top: 20px;
             opacity: 0;
-            transform: translateY(15px);
-            transition: all 1.5s cubic-bezier(0.23, 1, 0.32, 1);
-            font-weight: 400;
+            transition: opacity 1.5s ease;
         }
 
-        #loveMessage.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .hint {
-            position: absolute;
-            bottom: 20px;
-            width: 100%;
-            text-align: center;
-            color: #ffffff;
-            font-size: 12px;
+        /* ---------- FINAL ---------- */
+        #final {
+            font-size: 2.2rem;
             letter-spacing: 2px;
-            pointer-events: none;
-            opacity: 0.6;
-            text-transform: uppercase;
-            animation: hintPulse 2s infinite;
+            opacity: 0;
+            transition: opacity 3s ease;
         }
 
-        @keyframes hintPulse {
-            0%, 100% { opacity: 0.3; transform: scale(0.95); }
-            50% { opacity: 0.8; transform: scale(1.05); }
-        }
-
+        /* ---------- HEARTS ---------- */
         .heart-particle {
             position: fixed;
             pointer-events: none;
-            font-size: 20px;
-            animation: floatUp 1.5s ease-out forwards;
-            z-index: 1000;
+            font-size: 22px;
+            animation: floatUp 1.8s ease-out forwards;
         }
 
         @keyframes floatUp {
-            0% { transform: translateY(0) scale(1); opacity: 1; }
-            100% { transform: translateY(-100px) scale(0) rotate(20deg); opacity: 0; }
-        }
-
-        .completed canvas, .completed .hint {
-            opacity: 0;
-            pointer-events: none;
+            from { transform: translateY(0) scale(1); opacity: 1; }
+            to { transform: translateY(-120px) scale(0); opacity: 0; }
         }
     </style>
 </head>
+
 <body>
 
-<div id="preloader">
-    <div class="heart-loader"></div>
+<!-- LOADING -->
+<div id="loading" class="stage active">
+    <div class="city" id="delhi">Delhi</div>
+    <div class="city" id="mumbai">Mumbai</div>
+    <div class="path"></div>
+    <div class="heart">❤️</div>
 </div>
 
-<div class="container" id="gameContainer">
+<!-- LOVE -->
+<div id="love" class="stage">
+    <div>Tap slowly. I’m not in a hurry.</div>
+    <div id="tapHeart">❤️</div>
+    <div class="meter"><div id="fill" class="fill"></div></div>
+</div>
+
+<!-- SCRATCH -->
+<div id="scratch" class="stage">
     <div class="card">
-        <img id="hiddenImage" src="abc.JPG" alt="Surprise" />
-        <canvas id="wipeCanvas"></canvas>
-        <div class="hint" id="hint">Wipe the screen❤️</div>
+        <img src="abc.jpg">
+        <canvas id="scratchCanvas"></canvas>
     </div>
-
-    <div class="message-container">
-        <div id="loveMessage">
-            I love u rishubaby, <br>
-            ab tumse gussa hu, hm🥹
-        </div>
-    </div>
+    <div id="revealText">I love you, rishubaby.</div>
 </div>
+
+<!-- FINAL -->
+<div id="final" class="stage">
+    I love you.
+</div>
+
+<audio id="finalSong" src="a.webm"></audio>
 
 <script>
-    const canvas = document.getElementById('wipeCanvas');
-    const ctx = canvas.getContext('2d');
-    const container = document.getElementById('gameContainer');
-    const message = document.getElementById('loveMessage');
-    const preloader = document.getElementById('preloader');
-    const img = document.getElementById('hiddenImage');
+    /* ---------- HELPERS ---------- */
+    function show(id) {
+        document.querySelectorAll('.stage').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
 
-    let isDrawing = false;
-    let wipeCount = 0;
+    function spawnHeart(x, y) {
+        const h = document.createElement('div');
+        h.className = 'heart-particle';
+        h.textContent = '❤️';
+        h.style.left = x + 'px';
+        h.style.top = y + 'px';
+        document.body.appendChild(h);
+        setTimeout(() => h.remove(), 1800);
+    }
 
-    // Threshold set to 90% for a "complete" wipe requirement
-    const threshold = 0.90;
+    function heartBurstOverCanvas(canvas) {
+        const rect = canvas.getBoundingClientRect();
+        for (let i = 0; i < 40; i++) {
+            setTimeout(() => {
+                spawnHeart(
+                    rect.left + Math.random() * rect.width,
+                    rect.top + Math.random() * rect.height
+                );
+            }, i * 60);
+        }
+    }
 
-    img.onload = function() {
-        init();
-        setTimeout(() => {
-            preloader.style.opacity = '0';
-            container.style.opacity = '1';
-            setTimeout(() => preloader.style.display = 'none', 500);
-        }, 300);
+    /* ---------- FLOW ---------- */
+    setTimeout(() => show('love'), 3200);
+
+    /* ---------- LOVE ---------- */
+    let love = 0;
+    tapHeart.onclick = () => {
+        love += 10;
+        fill.style.width = love + '%';
+        if (love >= 100) {
+            setTimeout(() => {
+                show('scratch');
+                initScratch();
+            }, 500);
+        }
     };
 
-    img.onerror = function() {
-        preloader.innerHTML = "<p>Couldn't load photo. :(</p>";
-    };
+    /* ---------- SCRATCH ---------- */
+    let started = false;
 
-    function init() {
-        const rect = canvas.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
-        ctx.scale(dpr, dpr);
+    function initScratch() {
+        if (started) return;
+        started = true;
 
-        // Fill the canvas with the scratch layer
-        ctx.fillStyle = '#222';
-        ctx.fillRect(0, 0, rect.width, rect.height);
+        const canvas = scratchCanvas;
+        const ctx = canvas.getContext('2d');
+        const text = revealText;
+        const song = finalSong;
+        const scratchStage = document.getElementById('scratch');
 
-        // Add texture
-        for (let i = 0; i < 400; i++) {
-            ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.03})`;
-            ctx.fillRect(Math.random() * rect.width, Math.random() * rect.height, 2, 2);
-        }
-    }
+        canvas.width = 280;
+        canvas.height = 280;
+        ctx.fillStyle = '#333';
+        ctx.fillRect(0, 0, 280, 280);
 
-    function createHeart(x, y) {
-        const heart = document.createElement('div');
-        heart.innerHTML = '❤️';
-        heart.className = 'heart-particle';
-        heart.style.left = x + 'px';
-        heart.style.top = y + 'px';
-        document.body.appendChild(heart);
-        setTimeout(() => heart.remove(), 1500);
-    }
+        let drawing = false;
+        let revealed = false;
 
-    function getPos(e) {
-        const rect = canvas.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return { x: clientX - rect.left, y: clientY - rect.top, rawX: clientX, rawY: clientY };
-    }
+        function scratch(x, y) {
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.beginPath();
+            ctx.arc(x, y, 28, 0, Math.PI * 2);
+            ctx.fill();
 
-    function wipe(e) {
-        if (!isDrawing) return;
-        const pos = getPos(e);
+            const rect = canvas.getBoundingClientRect();
+            spawnHeart(rect.left + x, rect.top + y);
 
-        ctx.globalCompositeOperation = 'destination-out';
-
-        // Increased radius slightly (55) to make 90% wipe less tedious
-        const radius = 55;
-        const gradient = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, radius);
-        gradient.addColorStop(0, 'rgba(0,0,0,1)');
-        gradient.addColorStop(1, 'rgba(0,0,0,0)');
-
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
-        ctx.fill();
-
-        wipeCount++;
-
-        if (wipeCount % 8 === 0) {
-            createHeart(pos.rawX, pos.rawY);
-            if (navigator.vibrate) navigator.vibrate(10);
+            checkReveal();
         }
 
-        // Check progress every 20 movements
-        if (wipeCount % 20 === 0) checkProgress();
-    }
+        function checkReveal() {
+            if (revealed) return;
 
-    function checkProgress() {
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const pixels = imageData.data;
-        let cleared = 0;
+            const data = ctx.getImageData(0, 0, 280, 280).data;
+            let cleared = 0;
+            for (let i = 3; i < data.length; i += 80)
+                if (data[i] === 0) cleared++;
 
-        // Sample every 80th index (alpha channel) to check transparency
-        for (let i = 3; i < pixels.length; i += 80) {
-            if (pixels[i] < 20) cleared++;
-        }
+            if (cleared / (data.length / 80) > 0.6) {
+                revealed = true;
 
-        const currentProgress = cleared / (pixels.length / 80);
-
-        if (currentProgress > threshold) {
-            completeReveal();
-        }
-    }
-
-    function completeReveal() {
-        container.classList.add('completed');
-        document.body.style.background = '#1a0505';
-        setTimeout(() => {
-            message.classList.add('visible');
-            for(let i=0; i<15; i++) {
-                setTimeout(() => {
-                    createHeart(Math.random() * window.innerWidth, Math.random() * window.innerHeight);
-                }, i * 100);
+                text.style.opacity = 1;
+                song.play();
+                heartBurstOverCanvas(canvas);
+                autoWipe();
             }
-        }, 500);
+        }
+
+        function autoWipe() {
+            let y = 0;
+            const wipe = setInterval(() => {
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.fillRect(0, y, 280, 40);
+                y += 40;
+
+                if (y >= 280) {
+                    clearInterval(wipe);
+                    fadeToFinal();
+                }
+            }, 90);
+        }
+
+        function fadeToFinal() {
+            setTimeout(() => {
+                scratchStage.classList.add('fade-out');
+                setTimeout(() => {
+                    show('final');
+                    final.style.opacity = 1;
+                }, 4000);
+            }, 2000);
+        }
+
+        canvas.onmousedown = e => { drawing = true; scratch(e.offsetX, e.offsetY); };
+        canvas.onmouseup = () => drawing = false;
+        canvas.onmousemove = e => drawing && scratch(e.offsetX, e.offsetY);
+
+        canvas.ontouchstart = e => {
+            drawing = true;
+            const t = e.touches[0];
+            const r = canvas.getBoundingClientRect();
+            scratch(t.clientX - r.left, t.clientY - r.top);
+        };
+
+        canvas.ontouchmove = e => {
+            e.preventDefault();
+            const t = e.touches[0];
+            const r = canvas.getBoundingClientRect();
+            scratch(t.clientX - r.left, t.clientY - r.top);
+        };
+
+        canvas.ontouchend = () => drawing = false;
     }
-
-    // Input Listeners
-    canvas.addEventListener('mousedown', (e) => { isDrawing = true; wipe(e); });
-    canvas.addEventListener('touchstart', (e) => {
-        isDrawing = true; wipe(e);
-        if (e.cancelable) e.preventDefault();
-    }, { passive: false });
-
-    window.addEventListener('mousemove', wipe);
-    window.addEventListener('touchmove', (e) => {
-        wipe(e);
-        if (e.cancelable) e.preventDefault();
-    }, { passive: false });
-
-    window.addEventListener('mouseup', () => isDrawing = false);
-    window.addEventListener('touchend', () => isDrawing = false);
 </script>
 
 </body>
