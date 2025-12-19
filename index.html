@@ -6,317 +6,354 @@
     <title>Our Little World</title>
 
     <style>
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        :root {
+            --primary: #ff6b81;
+            --glass: rgba(255, 255, 255, 0.08);
+            --transition: all 2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
 
         body {
-            margin: 0;
-            height: 100vh;
-            background: radial-gradient(circle at top, #1a0f1f, #050507);
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            color: white;
-            overflow: hidden;
+            margin: 0; height: 100vh;
+            background: radial-gradient(circle at center, #1a0b21 0%, #050508 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: white; overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
         }
 
-        /* ---------- STAGES ---------- */
+        canvas.stars { position: fixed; inset: 0; pointer-events: none; z-index: 0; transition: opacity 3s ease; }
+
         .stage {
-            display: none;
-            position: absolute;
-            inset: 0;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            text-align: center;
+            display: none; position: absolute; inset: 0;
+            justify-content: center; align-items: center;
+            flex-direction: column; text-align: center;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 1.2s ease, transform 1.2s ease;
         }
 
-        .stage.active {
-            display: flex;
-            animation: fadeIn 1s ease;
+        .stage.active { display: flex; opacity: 1; animation: stageFadeIn 1.2s ease forwards; }
+
+        @keyframes stageFadeIn {
+            from { opacity: 0; transform: scale(0.98); filter: blur(10px); }
+            to { opacity: 1; transform: scale(1); filter: blur(0); }
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
+        .fade-away { opacity: 0 !important; filter: blur(30px) !important; transition: var(--transition); }
 
-        /* ---------- FADE OUT ---------- */
-        .fade-out {
-            animation: fadeOut 4s forwards;
-        }
-
-        @keyframes fadeOut {
-            to { opacity: 0; }
-        }
-
-        /* ---------- LOADING ---------- */
-        .city { position: absolute; font-size: 1.2rem; }
-        #delhi { left: 15%; top: 50%; }
-        #mumbai { right: 15%; top: 50%; }
-
+        .journey-container { width: 80%; max-width: 400px; height: 100px; position: relative; }
+        .city { font-size: 0.75rem; letter-spacing: 3px; text-transform: uppercase; opacity: 0.6; font-weight: 300; }
+        #delhi { position: absolute; left: 0; top: 10px; }
+        #mumbai { position: absolute; right: 0; top: 10px; }
         .path {
+            position: absolute; top: 55px; width: 100%; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+            opacity: 0.4;
+        }
+        .heart-travel {
+            position: absolute; top: 38px; left: 0; font-size: 24px;
+            animation: travel 3s cubic-bezier(0.45, 0.05, 0.55, 0.95) forwards;
+            filter: drop-shadow(0 0 8px var(--primary));
+        }
+        @keyframes travel { to { left: calc(100% - 24px); } }
+
+        /* Updated Balloon Styling */
+        #tapHeart {
+            font-size: 100px; cursor: grab; user-select: none;
+            filter: drop-shadow(0 5px 15px rgba(255, 255, 255, 0.2));
+            transition: transform 0.2s ease;
             position: absolute;
-            top: 53%;
-            left: 18%;
-            width: 64%;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, #ff6b81, transparent);
+            z-index: 15;
+            animation: balloonFloat 3s ease-in-out infinite;
         }
-
-        .heart {
-            position: absolute;
-            top: 47%;
-            left: 18%;
-            font-size: 26px;
-            animation: travel 3s ease-in-out forwards;
+        @keyframes balloonFloat {
+            0%, 100% { transform: translate(-50%, -50%) translateY(0) rotate(-2deg); }
+            50% { transform: translate(-50%, -50%) translateY(-20px) rotate(2deg); }
         }
+        #tapHeart:active { cursor: grabbing; animation: none; }
 
-        @keyframes travel {
-            0% { left: 18%; }
-            100% { left: 82%; }
+        .instruction {
+            font-weight: 300; font-size: 1rem; letter-spacing: 0.5px;
+            opacity: 0.85; margin-bottom: 20px; max-width: 300px; line-height: 1.6;
+            position: relative; top: -140px;
+            color: #ffcad4;
         }
-
-        /* ---------- LOVE ---------- */
-        #tapHeart { font-size: 90px; cursor: pointer; }
 
         .meter {
-            width: 240px;
-            height: 16px;
-            background: #222;
-            border-radius: 20px;
-            overflow: hidden;
-            margin-top: 20px;
+            width: 220px; height: 4px; position: absolute; bottom: 80px;
+            background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden;
+            transition: opacity 0.5s ease;
+        }
+        .fill { height: 100%; width: 0%; background: var(--primary); transition: width 0.1s linear; }
+
+        .card-frame {
+            padding: 12px; border-radius: 28px; background: var(--glass);
+            backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.05);
+        }
+        .card { width: 280px; height: 350px; position: relative; border-radius: 18px; overflow: hidden; }
+        .card img { width: 100%; height: 100%; object-fit: cover; }
+
+        canvas#scratchCanvas {
+            position: absolute; inset: 0; cursor: crosshair; touch-action: none; z-index: 2;
+            filter: blur(4px);
         }
 
-        .fill {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg,#ff4d4d,#ff9aa2);
-            transition: width 0.3s;
+        #revealText { margin-top: 30px; font-weight: 200; letter-spacing: 2px; opacity: 0; transition: opacity 1.5s ease; z-index: 1; }
+
+        #final { font-weight: 200; letter-spacing: 3px; font-size: 1.1rem; text-transform: lowercase; }
+        .restart-btn {
+            margin-top: 50px; background: none; border: 1px solid rgba(255,255,255,0.2);
+            color: white; padding: 8px 20px; border-radius: 20px; font-size: 0.7rem;
+            letter-spacing: 2px; cursor: pointer; opacity: 0.6;
         }
 
-        /* ---------- SCRATCH ---------- */
-        .card {
-            width: 280px;
-            height: 280px;
-            position: relative;
-            border-radius: 20px;
-            overflow: hidden;
-        }
-
-        .card img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        canvas {
-            position: absolute;
-            inset: 0;
-            touch-action: none;
-        }
-
-        /* ---------- TEXT ---------- */
-        #revealText {
-            margin-top: 20px;
-            opacity: 0;
-            transition: opacity 1.5s ease;
-        }
-
-        /* ---------- FINAL ---------- */
-        #final {
-            font-size: 2.2rem;
-            letter-spacing: 2px;
-            opacity: 0;
-            transition: opacity 3s ease;
-        }
-
-        /* ---------- HEARTS ---------- */
-        .heart-particle {
-            position: fixed;
-            pointer-events: none;
-            font-size: 22px;
-            animation: floatUp 1.8s ease-out forwards;
-        }
-
+        .heart-particle { position: fixed; pointer-events: none; z-index: 100; animation: floatUp 2s ease-out forwards; }
         @keyframes floatUp {
-            from { transform: translateY(0) scale(1); opacity: 1; }
-            to { transform: translateY(-120px) scale(0); opacity: 0; }
+            0% { transform: translateY(0) scale(0); opacity: 0; }
+            20% { opacity: 1; transform: scale(1.2); }
+            100% { transform: translateY(-120px) scale(0.5); opacity: 0; }
+        }
+
+        .heart-rain {
+            position: fixed; top: -50px; pointer-events: none; z-index: 99;
+            animation: rain linear forwards;
+        }
+        @keyframes rain {
+            to { transform: translateY(110vh) rotate(360deg); }
         }
     </style>
 </head>
 
 <body>
 
-<!-- LOADING -->
+<canvas class="stars" id="starCanvas"></canvas>
+
 <div id="loading" class="stage active">
-    <div class="city" id="delhi">Delhi</div>
-    <div class="city" id="mumbai">Mumbai</div>
-    <div class="path"></div>
-    <div class="heart">❤️</div>
+    <div class="journey-container">
+        <div class="city" id="delhi">Delhi</div>
+        <div class="city" id="mumbai">Mumbai</div>
+        <div class="path"></div>
+        <div class="heart-travel">❤️</div>
+    </div>
 </div>
 
-<!-- LOVE -->
 <div id="love" class="stage">
-    <div>Tap slowly. I’m not in a hurry.</div>
-    <div id="tapHeart">❤️</div>
+    <div class="instruction">meri babu ko balloon psnd h na, toh thodi der iss balloon ko pakad ke rakho and khelo iske sath, but chodna nahi</div>
+    <div id="tapHeart">🎈</div>
     <div class="meter"><div id="fill" class="fill"></div></div>
 </div>
 
-<!-- SCRATCH -->
 <div id="scratch" class="stage">
-    <div class="card">
-        <img src="abc.jpg">
-        <canvas id="scratchCanvas"></canvas>
+    <div class="card-frame">
+        <div class="card">
+            <img src="1.jpeg" alt="Memory">
+            <canvas id="scratchCanvas"></canvas>
+        </div>
     </div>
-    <div id="revealText">I love you, rishubaby.</div>
+    <div id="revealText">i love you</div>
 </div>
 
-<!-- FINAL -->
 <div id="final" class="stage">
-    I love you.
+    thank you for existing
+    <button class="restart-btn" onclick="location.reload()">restart</button>
 </div>
 
-<audio id="finalSong" src="a.webm"></audio>
+<audio id="finalSong" src="a.webm" preload="auto" loop></audio>
 
 <script>
-    /* ---------- HELPERS ---------- */
+    const starCanvas = document.getElementById('starCanvas'), sctx = starCanvas.getContext('2d');
+    const finalSong = document.getElementById('finalSong');
+    let stars = [];
+    let rainActive = false;
+
+    function initStars() {
+        starCanvas.width = innerWidth; starCanvas.height = innerHeight;
+        stars = Array.from({length: 150}, () => ({
+            x: Math.random() * starCanvas.width,
+            y: Math.random() * starCanvas.height,
+            size: Math.random() * 1.5,
+            speed: Math.random() * 0.3 + 0.1
+        }));
+    }
+    function drawStars() {
+        sctx.clearRect(0, 0, starCanvas.width, starCanvas.height);
+        sctx.fillStyle = "white";
+        stars.forEach(s => {
+            sctx.globalAlpha = Math.random() * 0.5 + 0.5;
+            sctx.beginPath(); sctx.arc(s.x, s.y, s.size, 0, Math.PI*2); sctx.fill();
+            s.y -= s.speed; if(s.y < 0) s.y = starCanvas.height;
+        });
+        requestAnimationFrame(drawStars);
+    }
+    initStars(); drawStars();
+
     function show(id) {
-        document.querySelectorAll('.stage').forEach(s => s.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
+        document.querySelectorAll('.stage').forEach(s => {
+            s.classList.remove('active');
+            setTimeout(() => { if(!s.classList.contains('active')) s.style.display = 'none'; }, 800);
+        });
+
+        const next = document.getElementById(id);
+        next.style.display = 'flex';
+        void next.offsetWidth;
+        next.classList.add('active');
     }
 
     function spawnHeart(x, y) {
         const h = document.createElement('div');
         h.className = 'heart-particle';
         h.textContent = '❤️';
-        h.style.left = x + 'px';
-        h.style.top = y + 'px';
+        h.style.left = x + 'px'; h.style.top = y + 'px';
         document.body.appendChild(h);
-        setTimeout(() => h.remove(), 1800);
+        setTimeout(() => h.remove(), 2000);
     }
 
-    function heartBurstOverCanvas(canvas) {
-        const rect = canvas.getBoundingClientRect();
-        for (let i = 0; i < 40; i++) {
-            setTimeout(() => {
-                spawnHeart(
-                    rect.left + Math.random() * rect.width,
-                    rect.top + Math.random() * rect.height
-                );
-            }, i * 60);
+    function startHeartRain() {
+        if (rainActive) return;
+        rainActive = true;
+        setInterval(() => {
+            const h = document.createElement('div');
+            h.className = 'heart-rain';
+            h.textContent = ['❤️', '💖', '💝', '💕'][Math.floor(Math.random() * 4)];
+            h.style.left = Math.random() * 100 + 'vw';
+            h.style.fontSize = (Math.random() * 20 + 10) + 'px';
+            const duration = (Math.random() * 3 + 2);
+            h.style.animationDuration = duration + 's';
+            h.style.opacity = Math.random() * 0.5 + 0.5;
+            document.body.appendChild(h);
+            setTimeout(() => h.remove(), duration * 1000);
+        }, 150);
+    }
+
+    setTimeout(() => show('love'), 3800);
+
+    let love = 0, isHolding = false;
+    const fill = document.getElementById('fill');
+    const heart = document.getElementById('tapHeart');
+
+    function startHold(e) {
+        if(!document.getElementById('love').classList.contains('active')) return;
+        isHolding = true;
+        heart.style.animation = "none"; // Stop floating when grabbed
+        heart.style.transition = "transform 0.1s ease";
+        if (finalSong.paused) {
+            finalSong.play().then(() => finalSong.pause()).catch(() => {});
         }
+        updateHeartPos(e);
     }
 
-    /* ---------- FLOW ---------- */
-    setTimeout(() => show('love'), 3200);
+    function stopHold() {
+        isHolding = false;
+        heart.style.transition = "all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+        heart.style.left = "50%";
+        heart.style.top = "50%";
+        heart.style.transform = "translate(-50%, -50%)";
+        setTimeout(() => {
+            if(!isHolding) heart.style.animation = "balloonFloat 3s ease-in-out infinite";
+        }, 600);
+    }
 
-    /* ---------- LOVE ---------- */
-    let love = 0;
-    tapHeart.onclick = () => {
-        love += 10;
+    function updateHeartPos(e) {
+        if (!isHolding) return;
+        const x = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        const y = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+        heart.style.left = x + 'px';
+        heart.style.top = y + 'px';
+        heart.style.transform = "translate(-50%, -50%) scale(1.15)";
+    }
+
+    const holdInterval = setInterval(() => {
+        if (isHolding) {
+            love = Math.min(100, love + 0.8); // Slightly slower for more play time
+            if (Math.random() > 0.8) {
+                const rect = heart.getBoundingClientRect();
+                spawnHeart(rect.left + rect.width/2, rect.top + rect.height/2);
+            }
+        } else {
+            love = Math.max(0, love - 1.5);
+        }
         fill.style.width = love + '%';
-        if (love >= 100) {
-            setTimeout(() => {
-                show('scratch');
-                initScratch();
-            }, 500);
+
+        if (love >= 100 && document.getElementById('love').classList.contains('active')) {
+            heart.style.display = 'none';
+            document.querySelector('.meter').style.opacity = '0';
+            isHolding = false;
+            show('scratch');
+            initScratch();
         }
-    };
+    }, 30);
 
-    /* ---------- SCRATCH ---------- */
-    let started = false;
+    heart.addEventListener('mousedown', startHold);
+    window.addEventListener('mousemove', updateHeartPos);
+    window.addEventListener('mouseup', stopHold);
+    heart.addEventListener('touchstart', (e) => { e.preventDefault(); startHold(e); });
+    window.addEventListener('touchmove', (e) => { e.preventDefault(); updateHeartPos(e); });
+    window.addEventListener('touchend', stopHold);
 
+    /* --- Fog Scratch Logic --- */
     function initScratch() {
-        if (started) return;
-        started = true;
+        const sc = document.getElementById('scratchCanvas'), ctx = sc.getContext('2d');
+        sc.width = 280; sc.height = 350;
 
-        const canvas = scratchCanvas;
-        const ctx = canvas.getContext('2d');
-        const text = revealText;
-        const song = finalSong;
-        const scratchStage = document.getElementById('scratch');
+        ctx.fillStyle = 'rgba(230, 230, 240, 0.95)';
+        ctx.fillRect(0, 0, sc.width, sc.height);
 
-        canvas.width = 280;
-        canvas.height = 280;
-        ctx.fillStyle = '#333';
-        ctx.fillRect(0, 0, 280, 280);
+        let isDone = false;
 
-        let drawing = false;
-        let revealed = false;
+        function handleScratch(x, y, clientX, clientY) {
+            if(isDone) return;
+            const brushSize = 45;
+            const gradient = ctx.createRadialGradient(x, y, 0, x, y, brushSize);
+            gradient.addColorStop(0, 'rgba(0,0,0,1)');
+            gradient.addColorStop(0.6, 'rgba(0,0,0,0.4)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
 
-        function scratch(x, y) {
             ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillStyle = gradient;
             ctx.beginPath();
-            ctx.arc(x, y, 28, 0, Math.PI * 2);
+            ctx.arc(x, y, brushSize, 0, Math.PI*2);
             ctx.fill();
 
-            const rect = canvas.getBoundingClientRect();
-            spawnHeart(rect.left + x, rect.top + y);
-
+            if(Math.random() > 0.7) spawnHeart(clientX, clientY);
             checkReveal();
         }
 
         function checkReveal() {
-            if (revealed) return;
+            if (isDone) return;
+            const data = ctx.getImageData(0, 0, sc.width, sc.height).data;
+            let transparentPixels = 0;
+            for (let i = 3; i < data.length; i += 20) {
+                if (data[i] < 150) transparentPixels++;
+            }
 
-            const data = ctx.getImageData(0, 0, 280, 280).data;
-            let cleared = 0;
-            for (let i = 3; i < data.length; i += 80)
-                if (data[i] === 0) cleared++;
+            if (transparentPixels / (data.length / 20) > 0.80) {
+                isDone = true;
+                sc.style.transition = "opacity 2s ease, filter 2s ease";
+                sc.style.opacity = "0";
+                sc.style.filter = "blur(20px)";
+                document.getElementById('revealText').style.opacity = 1;
 
-            if (cleared / (data.length / 80) > 0.6) {
-                revealed = true;
+                finalSong.currentTime = 0;
+                finalSong.play();
+                startHeartRain();
 
-                text.style.opacity = 1;
-                song.play();
-                heartBurstOverCanvas(canvas);
-                autoWipe();
+                setTimeout(() => {
+                    document.querySelectorAll('.stage:not(#final), .stars').forEach(el => el.classList.add('fade-away'));
+                    setTimeout(() => show('final'), 1200);
+                }, 4500);
             }
         }
 
-        function autoWipe() {
-            let y = 0;
-            const wipe = setInterval(() => {
-                ctx.globalCompositeOperation = 'destination-out';
-                ctx.fillRect(0, y, 280, 40);
-                y += 40;
-
-                if (y >= 280) {
-                    clearInterval(wipe);
-                    fadeToFinal();
-                }
-            }, 90);
-        }
-
-        function fadeToFinal() {
-            setTimeout(() => {
-                scratchStage.classList.add('fade-out');
-                setTimeout(() => {
-                    show('final');
-                    final.style.opacity = 1;
-                }, 4000);
-            }, 2000);
-        }
-
-        canvas.onmousedown = e => { drawing = true; scratch(e.offsetX, e.offsetY); };
-        canvas.onmouseup = () => drawing = false;
-        canvas.onmousemove = e => drawing && scratch(e.offsetX, e.offsetY);
-
-        canvas.ontouchstart = e => {
-            drawing = true;
-            const t = e.touches[0];
-            const r = canvas.getBoundingClientRect();
-            scratch(t.clientX - r.left, t.clientY - r.top);
-        };
-
-        canvas.ontouchmove = e => {
+        sc.addEventListener('mousemove', e => e.buttons === 1 && handleScratch(e.offsetX, e.offsetY, e.clientX, e.clientY));
+        sc.addEventListener('touchmove', e => {
             e.preventDefault();
+            const r = sc.getBoundingClientRect();
             const t = e.touches[0];
-            const r = canvas.getBoundingClientRect();
-            scratch(t.clientX - r.left, t.clientY - r.top);
-        };
-
-        canvas.ontouchend = () => drawing = false;
+            handleScratch(t.clientX - r.left, t.clientY - r.top, t.clientX, t.clientY);
+        });
     }
+
+    window.onresize = initStars;
 </script>
 
 </body>
