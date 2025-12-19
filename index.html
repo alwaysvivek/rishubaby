@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>For You</title>
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: #0a0a0a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            color: white;
+            transition: background 1.5s ease;
+        }
+
+        /* Loading Screen */
+        #preloader {
+            position: fixed;
+            inset: 0;
+            background: #0a0a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 0.5s ease;
+        }
+
+        .heart-loader {
+            width: 50px;
+            height: 50px;
+            background: #ff4d4d;
+            transform: rotate(45deg);
+            animation: pulse 1.2s infinite;
+        }
+        .heart-loader::before, .heart-loader::after {
+            content: "";
+            width: 50px; height: 50px;
+            background: #ff4d4d;
+            border-radius: 50%;
+            position: absolute;
+        }
+        .heart-loader::before { left: -25px; }
+        .heart-loader::after { top: -25px; }
+
+        @keyframes pulse {
+            0% { transform: rotate(45deg) scale(0.8); }
+            50% { transform: rotate(45deg) scale(1.1); }
+            100% { transform: rotate(45deg) scale(0.8); }
+        }
+
+        /* Main Content */
+        .container {
+            opacity: 0;
+            transition: opacity 1s ease;
+            position: relative;
+            width: 90vw;
+            max-width: 350px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .card {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 77, 77, 0.2);
+            background: #1a1a1a;
+        }
+
+        #hiddenImage {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            pointer-events: none;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+            cursor: crosshair;
+            transition: opacity 1.2s ease-out;
+        }
+
+        .message-container {
+            margin-top: 30px;
+            text-align: center;
+            width: 100%;
+            padding: 0 20px;
+        }
+
+        #loveMessage {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #ffcccc;
+            opacity: 0;
+            transform: translateY(15px);
+            transition: all 1.5s cubic-bezier(0.23, 1, 0.32, 1);
+            font-weight: 400;
+        }
+
+        #loveMessage.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .hint {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            color: #ffffff;
+            font-size: 12px;
+            letter-spacing: 2px;
+            pointer-events: none;
+            opacity: 0.6;
+            text-transform: uppercase;
+            animation: hintPulse 2s infinite;
+        }
+
+        @keyframes hintPulse {
+            0%, 100% { opacity: 0.3; transform: scale(0.95); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+        }
+
+        .heart-particle {
+            position: fixed;
+            pointer-events: none;
+            font-size: 20px;
+            animation: floatUp 1.5s ease-out forwards;
+            z-index: 1000;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-100px) scale(0) rotate(20deg); opacity: 0; }
+        }
+
+        .completed canvas, .completed .hint {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="preloader">
+    <div class="heart-loader"></div>
+</div>
+
+<div class="container" id="gameContainer">
+    <div class="card">
+        <img id="hiddenImage" src="abc.JPG" alt="Surprise" />
+        <canvas id="wipeCanvas"></canvas>
+        <div class="hint" id="hint">Wipe the screen❤️</div>
+    </div>
+
+    <div class="message-container">
+        <div id="loveMessage">
+            I love u rishubaby, <br>
+            tumhara naam change karke apne phone m ab प्राणप्रिये rakhunga yay🥹
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('wipeCanvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('gameContainer');
+    const message = document.getElementById('loveMessage');
+    const preloader = document.getElementById('preloader');
+    const img = document.getElementById('hiddenImage');
+
+    let isDrawing = false;
+    let wipeCount = 0;
+
+    // Threshold set to 90% for a "complete" wipe requirement
+    const threshold = 0.90;
+
+    img.onload = function() {
+        init();
+        setTimeout(() => {
+            preloader.style.opacity = '0';
+            container.style.opacity = '1';
+            setTimeout(() => preloader.style.display = 'none', 500);
+        }, 300);
+    };
+
+    img.onerror = function() {
+        preloader.innerHTML = "<p>Couldn't load photo. :(</p>";
+    };
+
+    function init() {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+
+        // Fill the canvas with the scratch layer
+        ctx.fillStyle = '#222';
+        ctx.fillRect(0, 0, rect.width, rect.height);
+
+        // Add texture
+        for (let i = 0; i < 400; i++) {
+            ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.03})`;
+            ctx.fillRect(Math.random() * rect.width, Math.random() * rect.height, 2, 2);
+        }
+    }
+
+    function createHeart(x, y) {
+        const heart = document.createElement('div');
+        heart.innerHTML = '❤️';
+        heart.className = 'heart-particle';
+        heart.style.left = x + 'px';
+        heart.style.top = y + 'px';
+        document.body.appendChild(heart);
+        setTimeout(() => heart.remove(), 1500);
+    }
+
+    function getPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: clientX - rect.left, y: clientY - rect.top, rawX: clientX, rawY: clientY };
+    }
+
+    function wipe(e) {
+        if (!isDrawing) return;
+        const pos = getPos(e);
+
+        ctx.globalCompositeOperation = 'destination-out';
+
+        // Increased radius slightly (55) to make 90% wipe less tedious
+        const radius = 55;
+        const gradient = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, radius);
+        gradient.addColorStop(0, 'rgba(0,0,0,1)');
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        wipeCount++;
+
+        if (wipeCount % 8 === 0) {
+            createHeart(pos.rawX, pos.rawY);
+            if (navigator.vibrate) navigator.vibrate(10);
+        }
+
+        // Check progress every 20 movements
+        if (wipeCount % 20 === 0) checkProgress();
+    }
+
+    function checkProgress() {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = imageData.data;
+        let cleared = 0;
+
+        // Sample every 80th index (alpha channel) to check transparency
+        for (let i = 3; i < pixels.length; i += 80) {
+            if (pixels[i] < 20) cleared++;
+        }
+
+        const currentProgress = cleared / (pixels.length / 80);
+
+        if (currentProgress > threshold) {
+            completeReveal();
+        }
+    }
+
+    function completeReveal() {
+        container.classList.add('completed');
+        document.body.style.background = '#1a0505';
+        setTimeout(() => {
+            message.classList.add('visible');
+            for(let i=0; i<15; i++) {
+                setTimeout(() => {
+                    createHeart(Math.random() * window.innerWidth, Math.random() * window.innerHeight);
+                }, i * 100);
+            }
+        }, 500);
+    }
+
+    // Input Listeners
+    canvas.addEventListener('mousedown', (e) => { isDrawing = true; wipe(e); });
+    canvas.addEventListener('touchstart', (e) => {
+        isDrawing = true; wipe(e);
+        if (e.cancelable) e.preventDefault();
+    }, { passive: false });
+
+    window.addEventListener('mousemove', wipe);
+    window.addEventListener('touchmove', (e) => {
+        wipe(e);
+        if (e.cancelable) e.preventDefault();
+    }, { passive: false });
+
+    window.addEventListener('mouseup', () => isDrawing = false);
+    window.addEventListener('touchend', () => isDrawing = false);
+</script>
+
+</body>
+</html>
