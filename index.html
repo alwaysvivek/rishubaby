@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Shake to Reveal</title>
+    <title>For You</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         :root {
-            --polaroid-white: #fdfdfd;
-            --shadow: rgba(0, 0, 0, 0.2);
+            --bg-color: #000;
         }
 
         body {
@@ -17,182 +17,233 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            background: #121212; /* Dark background to make the film pop */
-            font-family: -apple-system, system-ui, sans-serif;
+            background: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             overflow: hidden;
+            touch-action: none;
         }
 
-        /* Permission UI */
         #gate {
             position: fixed;
             inset: 0;
-            background: #121212;
+            background: #000;
             z-index: 100;
             display: flex;
             justify-content: center;
             align-items: center;
         }
 
-        .start-btn {
-            background: white;
-            color: black;
+        .btn {
+            background: #fff;
+            color: #000;
             border: none;
-            padding: 20px 40px;
+            padding: 16px 32px;
             border-radius: 50px;
             font-weight: bold;
-            font-size: 1.1rem;
+            font-size: 0.8rem;
+            cursor: pointer;
+            letter-spacing: 2px;
+            text-transform: uppercase;
             box-shadow: 0 0 20px rgba(255,255,255,0.2);
+            z-index: 101;
         }
 
-        /* Polaroid Frame */
-        .polaroid {
-            background: var(--polaroid-white);
-            padding: 15px 15px 60px 15px;
-            box-shadow: 0 20px 50px var(--shadow);
-            border-radius: 2px;
-            position: relative;
-            transform: rotate(-2deg);
-            transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
-        }
-
-        .photo-wrapper {
-            position: relative;
-            width: 280px;
-            height: 300px;
-            overflow: hidden;
-            background: #222;
-        }
-
-        .photo-wrapper img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        /* The "Unexposed" Film Overlay */
-        #overlay {
+        #restartBtn {
             position: absolute;
-            inset: 0;
-            background: #1a1a1a;
-            z-index: 2;
+            bottom: 30px;
+            display: none;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        .film-frame {
+            width: 95vw;
+            height: 75vh;
+            position: relative;
             display: flex;
             justify-content: center;
             align-items: center;
-            color: #444;
-            font-weight: bold;
-            transition: opacity 4s ease-in-out; /* Slow reveal like real film */
+            transition: transform 0.1s ease-out;
         }
 
-        .caption {
+        #mainImg {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            filter: blur(40px) brightness(0.05) sepia(1) hue-rotate(180deg);
+            display: block;
+        }
+
+        #overlay {
             position: absolute;
-            bottom: 15px;
-            width: 100%;
-            text-align: center;
-            font-size: 1.2rem;
-            color: #333;
-            font-family: "Brush Script MT", cursive;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            font-size: 0.7rem;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            pointer-events: none;
+        }
+
+        .progress-container {
+            width: 120px;
+            height: 2px;
+            background: rgba(255,255,255,0.1);
+            margin-top: 20px;
+        }
+
+        #inner-bar {
+            height: 100%;
+            background: #fff;
+            width: 0%;
+            transition: width 0.2s ease-out;
         }
 
         .hint {
-            margin-top: 40px;
-            color: white;
-            opacity: 0.6;
-            font-size: 0.9rem;
+            position: absolute;
+            bottom: 40px;
+            color: #fff;
+            opacity: 0.4;
+            font-size: 0.65rem;
             letter-spacing: 2px;
             text-transform: uppercase;
-        }
-
-        /* Visual shake feedback */
-        .shaking {
-            animation: shake-anim 0.2s infinite;
-        }
-
-        @keyframes shake-anim {
-            0% { transform: translate(0,0) rotate(-2deg); }
-            25% { transform: translate(5px, 5px) rotate(0deg); }
-            50% { transform: translate(-5px, -5px) rotate(-4deg); }
-            75% { transform: translate(5px, -5px) rotate(-1deg); }
-            100% { transform: translate(0,0) rotate(-2deg); }
         }
     </style>
 </head>
 <body>
 
     <div id="gate">
-        <button class="start-btn" onclick="init()">TAP TO UNBOX</button>
+        <button class="btn" onclick="init()">TAP TO UNBOX</button>
     </div>
 
-    <div class="polaroid" id="card">
-        <div class="photo-wrapper">
-            <div id="overlay">DEVELOPING...</div>
-            <img src="a.png" alt="cartoon character">
+    <div class="film-frame" id="card">
+        <div id="overlay">
+            DEVELOPING
+            <div class="progress-container"><div id="inner-bar"></div></div>
         </div>
-        <div class="caption">my favorite cartoon character</div>
+        <img src="a.png" id="mainImg">
     </div>
 
-    <div class="hint" id="hintText">SHAKE TO REVEAL</div>
+    <button id="restartBtn" class="btn" onclick="location.reload()">REPLAY</button>
 
-    <audio id="song" src="1.mp3"></audio>
+    <div class="hint" id="hintText">Shake it hard</div>
+
+    <audio id="song" src="1.mp3" loop></audio>
 
     <script>
         const song = document.getElementById('song');
         const overlay = document.getElementById('overlay');
+        const innerBar = document.getElementById('inner-bar');
+        const mainImg = document.getElementById('mainImg');
         const card = document.getElementById('card');
         const gate = document.getElementById('gate');
         const hintText = document.getElementById('hintText');
+        const restartBtn = document.getElementById('restartBtn');
 
         let isRevealed = false;
+        let progress = 0;
+
+        // --- DIFFICULTY SETTINGS ---
+        const TARGET = 250; // Increased from 140 (takes more shakes)
+        const DRAIN = 0.8;  // Increased from 0.4 (bar drops faster if she stops)
+        const SHAKE_SENSE = 15; // Increased from 10 (needs more vigorous movement)
+        // ---------------------------
+
+        let lastX = 0, lastY = 0;
 
         async function init() {
-            // Request iOS Permissions
-            if (typeof DeviceMotionEvent.requestPermission === 'function') {
-                const permission = await DeviceMotionEvent.requestPermission();
-                if (permission !== 'granted') return alert("Permission required to shake!");
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                try {
+                    const status = await DeviceMotionEvent.requestPermission();
+                    if (status === 'granted') window.addEventListener('devicemotion', handleMotion);
+                } catch (e) { console.error(e); }
+            } else {
+                window.addEventListener('mousemove', (e) => {
+                    if (isRevealed) return;
+                    let move = Math.abs(e.movementX) + Math.abs(e.movementY);
+                    if (move > 10) addProgress(move * 0.1);
+                });
             }
 
             gate.style.display = 'none';
-
-            // Prime audio (ios requirement)
-            song.play();
-            song.pause();
-            song.currentTime = 0;
-
-            startShakeListener();
+            song.play().catch(() => {});
+            updateLoop();
         }
 
-        function startShakeListener() {
-            let threshold = 15;
-            let lastX, lastY, lastZ;
+        function handleMotion(e) {
+            if (isRevealed) return;
+            let acc = e.accelerationIncludingGravity;
+            if(!acc) return;
+            let delta = Math.abs(lastX - acc.x) + Math.abs(lastY - acc.y);
 
-            window.addEventListener('devicemotion', (e) => {
-                if (isRevealed) return;
-
-                let acc = e.accelerationIncludingGravity;
-                let deltaX = Math.abs(lastX - acc.x);
-                let deltaY = Math.abs(lastY - acc.y);
-
-                if (deltaX > threshold || deltaY > threshold) {
-                    reveal();
-                }
-
-                lastX = acc.x;
-                lastY = acc.y;
-            });
+            if (delta > SHAKE_SENSE) {
+                // The harder the shake, the more progress, but constrained
+                addProgress(delta * 0.7);
+                if (navigator.vibrate) navigator.vibrate(20);
+            }
+            lastX = acc.x; lastY = acc.y;
         }
 
-        function reveal() {
+        function addProgress(amt) {
+            progress += amt;
+            // Visual feedback of the shake intensity
+            card.style.transform = `rotate(${(Math.random() - 0.5) * 10}deg) scale(1.03)`;
+        }
+
+        function updateLoop() {
+            if (isRevealed) return;
+
+            // Constantly drain progress so she has to keep going
+            if (progress > 0) progress -= DRAIN;
+
+            let percent = Math.min(progress / TARGET, 1);
+
+            overlay.style.opacity = 1 - (percent * 1.2);
+            innerBar.style.width = (percent * 100) + "%";
+
+            // Visuals start darker and clear up slower
+            let blurVal = (1 - percent) * 50;
+            let brightVal = 0.05 + (percent * 0.95);
+            let sepiaVal = 1 - percent;
+            let hueVal = (1 - percent) * 180;
+
+            mainImg.style.filter = `
+                blur(${blurVal}px)
+                brightness(${brightVal})
+                sepia(${sepiaVal})
+                hue-rotate(${hueVal}deg)
+            `;
+
+            if (percent >= 1) {
+                finish();
+            } else {
+                requestAnimationFrame(updateLoop);
+            }
+        }
+
+        function finish() {
             isRevealed = true;
-            song.play();
+            mainImg.style.filter = 'none';
+            overlay.style.display = 'none';
+            hintText.style.display = 'none';
 
-            // Visual Effects
-            overlay.style.opacity = '0';
-            card.classList.add('shaking');
-            hintText.innerText = "❤️";
+            card.style.transform = 'scale(1.05) rotate(0deg)';
+            card.style.transition = 'transform 2s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+
+            confetti({
+                particleCount: 180,
+                spread: 80,
+                origin: { y: 0.6 },
+                colors: ['#ffffff', '#ff69b4', '#ff0000', '#ffd700']
+            });
 
             setTimeout(() => {
-                card.classList.remove('shaking');
-                card.style.transform = "rotate(0deg) scale(1.1)";
-            }, 1000);
+                restartBtn.style.display = 'block';
+                setTimeout(() => { restartBtn.style.opacity = '1'; }, 50);
+            }, 5000);
         }
     </script>
 </body>
