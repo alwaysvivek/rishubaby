@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -21,6 +22,7 @@
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             overflow: hidden;
             touch-action: none;
+            cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="pink"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>') 10 10, auto;
         }
 
         #gate {
@@ -44,8 +46,13 @@
             cursor: pointer;
             letter-spacing: 2px;
             text-transform: uppercase;
-            box-shadow: 0 0 20px rgba(255,255,255,0.2);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
             z-index: 101;
+            transition: transform 0.2s;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
         }
 
         #restartBtn {
@@ -54,6 +61,24 @@
             display: none;
             opacity: 0;
             transition: opacity 1s ease;
+        }
+
+        #loveLetterBtn {
+            position: absolute;
+            bottom: 100px;
+            display: none;
+            opacity: 0;
+            background: #ff69b4;
+            color: #fff;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            box-shadow: 0 0 30px rgba(255, 105, 180, 0.6);
+            transition: opacity 1s ease, transform 0.2s;
+            z-index: 50;
         }
 
         .film-frame {
@@ -66,12 +91,30 @@
             transition: transform 0.1s ease-out;
         }
 
+        @keyframes pulse {
+            0% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+            }
+
+            70% {
+                transform: scale(1.08);
+                box-shadow: 0 0 0 20px rgba(255, 255, 255, 0);
+            }
+
+            100% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+            }
+        }
+
         #mainImg {
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
             filter: blur(40px) brightness(0.05) sepia(1) hue-rotate(180deg);
             display: block;
+            border-radius: 8px;
         }
 
         #overlay {
@@ -91,7 +134,7 @@
         .progress-container {
             width: 120px;
             height: 2px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             margin-top: 20px;
         }
 
@@ -111,8 +154,129 @@
             letter-spacing: 2px;
             text-transform: uppercase;
         }
+
+        /* NEW STYLES */
+        .heart-trail {
+            position: fixed;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            z-index: 50;
+        }
+
+        .floating-text {
+            position: fixed;
+            font-weight: bold;
+            font-size: 1.2rem;
+            pointer-events: none;
+            animation: floatText 1.5s ease-out forwards;
+            z-index: 60;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+        }
+
+        @keyframes floatUp {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-50px) scale(0);
+            }
+        }
+
+        @keyframes floatText {
+            0% {
+                opacity: 0;
+                transform: translateY(10px) scale(0.5);
+            }
+
+            20% {
+                opacity: 1;
+                transform: translateY(0) scale(1.2);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-80px) scale(1);
+            }
+        }
+
+        /* MODAL */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .paper {
+            background: #fffafa;
+            width: 80%;
+            max-width: 400px;
+            padding: 40px;
+            border-radius: 5px;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+            font-family: 'Times New Roman', serif;
+            color: #333;
+            transform: rotate(-2deg);
+            position: relative;
+        }
+
+        .paper::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 100%;
+            background: linear-gradient(to bottom, transparent 0%, transparent 95%, #ddd 96%);
+            /* lined paper effect */
+            background-size: 100% 24px;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        .paper h2 {
+            margin-top: 0;
+            font-style: italic;
+            text-align: center;
+        }
+
+        .paper p {
+            font-size: 1.1rem;
+            line-height: 24px;
+        }
+
+        .close-modal {
+            margin-top: 20px;
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background: #000;
+            color: #fff;
+            border: none;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            cursor: pointer;
+            letter-spacing: 2px;
+        }
     </style>
 </head>
+
 <body>
 
     <div id="gate">
@@ -122,12 +286,27 @@
     <div class="film-frame" id="card">
         <div id="overlay">
             DEVELOPING
-            <div class="progress-container"><div id="inner-bar"></div></div>
+            <div class="progress-container">
+                <div id="inner-bar"></div>
+            </div>
         </div>
         <img src="a.png" id="mainImg">
     </div>
 
     <button id="restartBtn" class="btn" onclick="location.reload()">REPLAY</button>
+
+    <button id="loveLetterBtn" class="btn">💌</button>
+
+    <div id="letterModal" class="modal">
+        <div class="paper">
+            <h2>My Dearest Rishu,</h2>
+            <p>
+                I love u meri barbiedoll, i love u so so so so so so much, u're the prettiest girl ever and im blessed
+                to have u, and did u like new rishubarbie game yay ❤️
+            </p>
+            <button class="close-modal" id="closeLetter">Close</button>
+        </div>
+    </div>
 
     <div class="hint" id="hintText">Shake it hard</div>
 
@@ -142,17 +321,27 @@
         const gate = document.getElementById('gate');
         const hintText = document.getElementById('hintText');
         const restartBtn = document.getElementById('restartBtn');
+        const loveLetterBtn = document.getElementById('loveLetterBtn');
+        const letterModal = document.getElementById('letterModal');
+        const closeLetter = document.getElementById('closeLetter');
 
         let isRevealed = false;
         let progress = 0;
 
         // --- DIFFICULTY SETTINGS ---
-        const TARGET = 250; // Increased from 140 (takes more shakes)
-        const DRAIN = 0.8;  // Increased from 0.4 (bar drops faster if she stops)
-        const SHAKE_SENSE = 15; // Increased from 10 (needs more vigorous movement)
+        const TARGET = 250;
+        const DRAIN = 0.8;
+        const SHAKE_SENSE = 15;
         // ---------------------------
 
         let lastX = 0, lastY = 0;
+
+        // --- COMPLIMENTS ---
+        const compliments = [
+            "I love u ❤️", "Rishubarbie 🎀", "Minku 😽", "Rishusaurus 🦖",
+            "Pyaribabu 🥰", "Golu Molu Laddu 🍬", "Meri Jaan 💖", "Beautiful ✨",
+            "My Queen 👑", "Cutie Pie 🥧"
+        ];
 
         async function init() {
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
@@ -169,18 +358,27 @@
             }
 
             gate.style.display = 'none';
-            song.play().catch(() => {});
+            song.play().catch(() => { });
+
+            // Activate interactions
+            document.addEventListener('mousemove', createHeart);
+            document.addEventListener('touchmove', (e) => createHeart(e.touches[0]));
+            document.addEventListener('click', (e) => {
+                // Don't spawn compliment if clicking buttons
+                if (e.target.tagName === 'BUTTON' || e.target.closest('#letterModal')) return;
+                spawnCompliment(e.clientX, e.clientY);
+            });
+
             updateLoop();
         }
 
         function handleMotion(e) {
             if (isRevealed) return;
             let acc = e.accelerationIncludingGravity;
-            if(!acc) return;
+            if (!acc) return;
             let delta = Math.abs(lastX - acc.x) + Math.abs(lastY - acc.y);
 
             if (delta > SHAKE_SENSE) {
-                // The harder the shake, the more progress, but constrained
                 addProgress(delta * 0.7);
                 if (navigator.vibrate) navigator.vibrate(20);
             }
@@ -189,14 +387,12 @@
 
         function addProgress(amt) {
             progress += amt;
-            // Visual feedback of the shake intensity
             card.style.transform = `rotate(${(Math.random() - 0.5) * 10}deg) scale(1.03)`;
         }
 
         function updateLoop() {
             if (isRevealed) return;
 
-            // Constantly drain progress so she has to keep going
             if (progress > 0) progress -= DRAIN;
 
             let percent = Math.min(progress / TARGET, 1);
@@ -204,7 +400,6 @@
             overlay.style.opacity = 1 - (percent * 1.2);
             innerBar.style.width = (percent * 100) + "%";
 
-            // Visuals start darker and clear up slower
             let blurVal = (1 - percent) * 50;
             let brightVal = 0.05 + (percent * 0.95);
             let sepiaVal = 1 - percent;
@@ -230,8 +425,9 @@
             overlay.style.display = 'none';
             hintText.style.display = 'none';
 
+            // Add pulse animation
+            card.style.animation = 'pulse 2s infinite ease-in-out';
             card.style.transform = 'scale(1.05) rotate(0deg)';
-            card.style.transition = 'transform 2s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
 
             confetti({
                 particleCount: 180,
@@ -242,9 +438,56 @@
 
             setTimeout(() => {
                 restartBtn.style.display = 'block';
-                setTimeout(() => { restartBtn.style.opacity = '1'; }, 50);
-            }, 5000);
+                loveLetterBtn.style.display = 'flex'; // Show letter button
+                setTimeout(() => {
+                    restartBtn.style.opacity = '1';
+                    loveLetterBtn.style.opacity = '1';
+                }, 50);
+            }, 3000);
+        }
+
+        // --- NEW INTERACTIVE FUNCTIONS ---
+
+        function createHeart(e) {
+            if (!e) return;
+            const heart = document.createElement('div');
+            heart.classList.add('heart-trail');
+            heart.innerHTML = '❤️';
+            heart.style.left = e.clientX + 'px';
+            heart.style.top = e.clientY + 'px';
+            heart.style.fontSize = (Math.random() * 10 + 10) + 'px';
+            document.body.appendChild(heart);
+
+            setTimeout(() => {
+                heart.remove();
+            }, 1000);
+        }
+
+        function spawnCompliment(x, y) {
+            const comp = document.createElement('div');
+            comp.classList.add('floating-text');
+            comp.innerText = compliments[Math.floor(Math.random() * compliments.length)];
+            comp.style.left = x + 'px';
+            comp.style.top = y + 'px';
+            comp.style.color = `hsl(${Math.random() * 360}, 100%, 75%)`;
+            document.body.appendChild(comp);
+
+            setTimeout(() => {
+                comp.remove();
+            }, 1500);
+        }
+
+        // Modal Logic
+        loveLetterBtn.onclick = () => {
+            letterModal.classList.add('active');
+        };
+        closeLetter.onclick = () => {
+            letterModal.classList.remove('active');
+        };
+        letterModal.onclick = (e) => {
+            if (e.target === letterModal) letterModal.classList.remove('active');
         }
     </script>
 </body>
+
 </html>
