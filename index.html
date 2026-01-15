@@ -3,27 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate Gesture Morph - Pro</title>
+    <title>Gravity & Particle Text Pro</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
         #ui { position: absolute; top: 20px; left: 20px; color: white; z-index: 10; pointer-events: none; }
-        #status { font-weight: bold; font-size: 1.4rem; color: #00d4ff; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 2px; }
-        .guide { font-size: 13px; opacity: 0.8; background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px; border: 1px solid #444; }
-        #video-container { position: absolute; bottom: 20px; right: 20px; width: 180px; height: 135px; border: 2px solid #00d4ff; border-radius: 10px; overflow: hidden; transform: scaleX(-1); }
+        #status { font-weight: bold; font-size: 1.4rem; color: #ff0077; margin-bottom: 10px; text-transform: uppercase; }
+        .guide { font-size: 13px; opacity: 0.8; background: rgba(0,0,0,0.6); padding: 15px; border-radius: 12px; border: 1px solid #333; }
+        #video-container { position: absolute; bottom: 20px; right: 20px; width: 180px; height: 135px; border: 2px solid #ff0077; border-radius: 10px; overflow: hidden; transform: scaleX(-1); opacity: 0.6; }
         video { width: 100%; height: 100%; object-fit: cover; }
     </style>
 </head>
 <body>
 
     <div id="ui">
-        <div id="status">Scanning Gestures...</div>
+        <div id="status">Ready...</div>
         <div class="guide">
-            🤟 <b>I Love You:</b> Heart Shape<br>
-            ✊ <b>Fist:</b> Sphere Shape<br>
-            🖐 <b>Open Palm:</b> Plane Grid<br>
-            ✌️ <b>Peace:</b> Five-Point Star<br>
-            ☝️ <b>Point Up:</b> Tornado Spiral<br>
-            👏 <b>2-Hand Clap:</b> Shrink/Vanish
+            🤟 <b>ILY Gesture:</b> Spells "I ❤️ U" in particles<br>
+            👌 <b>Pinch:</b> Zoom In / Out<br>
+            ✊ <b>Fist:</b> Grab & Move Particles<br>
+            ✌️ <b>Peace:</b> Star Shape
         </div>
     </div>
 
@@ -34,40 +32,42 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
     <script>
-        const PARTICLE_COUNT = 8000;
-        let scene, camera, renderer, particleSystem, glitterSystem;
-        let currentShape = 'heart';
-        let targetScale = 1;
+        let scene, camera, renderer, particleSystem;
+        const PARTICLE_COUNT = 9000;
+        let handPos = new THREE.Vector3(0, 0, 0);
+        let isGrabbing = false;
+        let targetZoom = 20;
 
-        // --- Shape Definitions ---
-        const getPositions = {
-            heart: (i) => {
-                const t = Math.random() * Math.PI * 2;
-                const x = 16 * Math.pow(Math.sin(t), 3);
-                const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
-                return new THREE.Vector3(x * 0.4, y * 0.4, (Math.random()-0.5) * 2);
-            },
-            sphere: (i) => {
-                const phi = Math.acos(-1 + (2 * i) / PARTICLE_COUNT);
-                const theta = Math.sqrt(PARTICLE_COUNT * Math.PI) * phi;
-                return new THREE.Vector3(Math.cos(theta)*Math.sin(phi), Math.sin(theta)*Math.sin(phi), Math.cos(phi)).multiplyScalar(7);
-            },
-            plane: (i) => {
-                const x = (i % 90) - 45;
-                const y = Math.floor(i / 90) - 45;
-                return new THREE.Vector3(x * 0.3, y * 0.3, 0);
+        // --- Particle Text and Shape Logic ---
+        const shapes = {
+            heartText: (i) => {
+                // Divide particles into 3 groups for "I", "❤️", and "U"
+                const section = i % 3;
+                if (section === 0) { // The "I"
+                    return new THREE.Vector3(-12, (Math.random() * 10) - 5, (Math.random()-0.5));
+                } else if (section === 1) { // The Heart
+                    const t = Math.random() * Math.PI * 2;
+                    const x = 16 * Math.pow(Math.sin(t), 3);
+                    const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+                    return new THREE.Vector3(x * 0.45, y * 0.45, (Math.random()-0.5) * 2);
+                } else { // The "U"
+                    const t = (Math.random() * Math.PI) + Math.PI; // Half circle
+                    const x = Math.cos(t) * 5 + 12;
+                    const y = Math.sin(t) * 7 + 2;
+                    const vert = Math.random() > 0.5 ? 1 : 0;
+                    if (vert) return new THREE.Vector3(x, y + (Math.random() * 5), (Math.random()-0.5));
+                    return new THREE.Vector3(x, y, (Math.random()-0.5));
+                }
             },
             star: (i) => {
-                const t = Math.random() * Math.PI * 2;
-                const r = (i % 2 === 0 ? 10 : 4) * Math.random();
                 const arms = 5;
-                const angle = Math.floor(Math.random() * arms) * (Math.PI * 2 / arms);
-                return new THREE.Vector3(Math.cos(angle + t*0.1) * r, Math.sin(angle + t*0.1) * r, (Math.random()-0.5)*2);
+                const angle = (i % arms) * (Math.PI * 2 / arms);
+                const r = Math.random() * 12;
+                return new THREE.Vector3(Math.cos(angle) * r, Math.sin(angle) * r, (Math.random()-0.5)*2);
             },
             tornado: (i) => {
                 const angle = 0.1 * i;
-                const r = i / 400;
-                return new THREE.Vector3(Math.cos(angle)*r, (i/400) - 10, Math.sin(angle)*r);
+                return new THREE.Vector3(Math.cos(angle)*(i/450), (i/350)-12, Math.sin(angle)*(i/450));
             }
         };
 
@@ -82,84 +82,80 @@
 
             const geo = new THREE.BufferGeometry();
             const pos = new Float32Array(PARTICLE_COUNT * 3);
-            const targetPos = new Float32Array(PARTICLE_COUNT * 3);
-            const colors = new Float32Array(PARTICLE_COUNT * 3);
+            const targets = new Float32Array(PARTICLE_COUNT * 3);
 
             for(let i=0; i<PARTICLE_COUNT; i++) {
-                const p = getPositions.heart(i);
+                const p = shapes.heartText(i);
                 pos[i*3] = p.x; pos[i*3+1] = p.y; pos[i*3+2] = p.z;
-                targetPos[i*3] = p.x; targetPos[i*3+1] = p.y; targetPos[i*3+2] = p.z;
-                colors[i*3] = 1; colors[i*3+1] = 0.2; colors[i*3+2] = 0.5;
+                targets[i*3] = p.x; targets[i*3+1] = p.y; targets[i*3+2] = p.z;
             }
 
             geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-            geo.setAttribute('targetPos', new THREE.BufferAttribute(targetPos, 3));
-            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-            const mat = new THREE.PointsMaterial({ size: 0.15, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true });
+            geo.setAttribute('target', new THREE.BufferAttribute(targets, 3));
+            
+            const mat = new THREE.PointsMaterial({ 
+                color: 0xff0077, size: 0.12, transparent: true, blending: THREE.AdditiveBlending 
+            });
             particleSystem = new THREE.Points(geo, mat);
             scene.add(particleSystem);
-
-            // Glitter
-            const gGeo = new THREE.BufferGeometry();
-            gGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(500 * 3), 3));
-            glitterSystem = new THREE.Points(gGeo, new THREE.PointsMaterial({color: 0xffffff, size: 0.05}));
-            scene.add(glitterSystem);
         }
 
-        function morphTo(shapeName, r, g, b) {
-            if (currentShape === shapeName) return;
-            currentShape = shapeName;
-            const targetAttr = particleSystem.geometry.attributes.targetPos;
-            const colorAttr = particleSystem.geometry.attributes.color;
+        function updateTargetShape(shapeName) {
+            const targetAttr = particleSystem.geometry.attributes.target;
             for(let i=0; i<PARTICLE_COUNT; i++) {
-                const p = getPositions[shapeName](i);
+                const p = shapes[shapeName](i);
                 targetAttr.array[i*3] = p.x;
                 targetAttr.array[i*3+1] = p.y;
                 targetAttr.array[i*3+2] = p.z;
-                colorAttr.array[i*3] = r; colorAttr.array[i*3+1] = g; colorAttr.array[i*3+2] = b;
             }
             targetAttr.needsUpdate = true;
-            colorAttr.needsUpdate = true;
         }
 
         function initTracking() {
             const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
-            hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7 });
+            hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.75 });
 
             hands.onResults(results => {
                 const status = document.getElementById('status');
-                if (!results.multiHandLandmarks.length) return;
+                if (results.multiHandLandmarks && results.multiHandLandmarks[0]) {
+                    const hand = results.multiHandLandmarks[0];
+                    
+                    // 1. Grab Point
+                    handPos.set((hand[9].x - 0.5) * -40, (hand[9].y - 0.5) * -30, (hand[9].z * 20));
 
-                results.multiHandLandmarks.forEach((hand, idx) => {
+                    // 2. Pinch Zoom Logic
+                    const thumbTip = hand[4];
+                    const indexTip = hand[8];
+                    const distance = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+                    targetZoom = THREE.MathUtils.mapLinear(distance, 0.05, 0.3, 10, 40);
+
+                    // 3. Gesture Detection
                     const isIndexUp = hand[8].y < hand[6].y;
                     const isMiddleUp = hand[12].y < hand[10].y;
-                    const isRingUp = hand[16].y < hand[14].y;
                     const isPinkyUp = hand[20].y < hand[18].y;
-                    const isThumbUp = hand[4].x < hand[3].x; // Simplified
+                    const isFist = [8, 12, 16, 20].every(i => hand[i].y > hand[i-2].y);
 
-                    // Logic for Gestures
-                    if (isIndexUp && isPinkyUp && !isMiddleUp && !isRingUp) {
-                        status.innerText = "💖 I LOVE YOU";
-                        morphTo('heart', 1, 0.1, 0.5);
-                    } else if (!isIndexUp && !isMiddleUp && !isRingUp && !isPinkyUp) {
-                        status.innerText = "✊ FIST - SPHERE";
-                        morphTo('sphere', 0, 0.8, 1);
-                    } else if (isIndexUp && isMiddleUp && isRingUp && isPinkyUp) {
-                        status.innerText = "🖐 PALM - PLANE";
-                        morphTo('plane', 0.5, 1, 0.5);
-                    } else if (isIndexUp && isMiddleUp && !isRingUp && !isPinkyUp) {
-                        status.innerText = "✌️ PEACE - STAR";
-                        morphTo('star', 1, 0.8, 0);
-                    } else if (isIndexUp && !isMiddleUp && !isRingUp && !isPinkyUp) {
-                        status.innerText = "☝️ POINT - TORNADO";
-                        morphTo('tornado', 0.7, 0.3, 1);
+                    if (isFist) {
+                        isGrabbing = true;
+                        status.innerText = "✊ GRAVITY GRAB";
+                        particleSystem.material.color.set(0x00ffcc);
+                    } else {
+                        isGrabbing = false;
+                        particleSystem.material.color.set(0xff0077);
+                        
+                        if (isIndexUp && isPinkyUp && !isMiddleUp) {
+                            status.innerText = "🤟 I ❤️ U";
+                            updateTargetShape('heartText');
+                        } else if (isIndexUp && isMiddleUp && !isPinkyUp) {
+                            status.innerText = "✌️ STAR MODE";
+                            updateTargetShape('star');
+                        } else if (isIndexUp && !isMiddleUp) {
+                            status.innerText = "☝️ TORNADO";
+                            updateTargetShape('tornado');
+                        } else {
+                            status.innerText = "🖐 TRACKING";
+                        }
                     }
-                });
-
-                if (results.multiHandLandmarks.length === 2) {
-                    const d = Math.hypot(results.multiHandLandmarks[0][9].x - results.multiHandLandmarks[1][9].x, results.multiHandLandmarks[0][9].y - results.multiHandLandmarks[1][9].y);
-                    targetScale = THREE.MathUtils.mapLinear(d, 0.1, 0.6, 0, 2);
                 }
             });
 
@@ -172,15 +168,29 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            const pos = particleSystem.geometry.attributes.position;
-            const target = particleSystem.geometry.attributes.targetPos;
+            const posAttr = particleSystem.geometry.attributes.position;
+            const targetAttr = particleSystem.geometry.attributes.target;
 
-            for(let i=0; i<PARTICLE_COUNT*3; i++) {
-                pos.array[i] += (target.array[i] - pos.array[i]) * 0.1;
+            for(let i=0; i<PARTICLE_COUNT; i++) {
+                const ix = i*3, iy = i*3+1, iz = i*3+2;
+                
+                if (isGrabbing) {
+                    posAttr.array[ix] += (handPos.x - posAttr.array[ix]) * 0.15;
+                    posAttr.array[iy] += (handPos.y - posAttr.array[iy]) * 0.15;
+                    posAttr.array[iz] += (handPos.z - posAttr.array[iz]) * 0.15;
+                } else {
+                    posAttr.array[ix] += (targetAttr.array[ix] - posAttr.array[ix]) * 0.08;
+                    posAttr.array[iy] += (targetAttr.array[iy] - posAttr.array[iy]) * 0.08;
+                    posAttr.array[iz] += (targetAttr.array[iz] - posAttr.array[iz]) * 0.08;
+                }
             }
-            pos.needsUpdate = true;
+            
+            posAttr.needsUpdate = true;
+            
+            // Smooth Camera Zoom
+            camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetZoom, 0.1);
+            
             particleSystem.rotation.y += 0.005;
-            particleSystem.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
             renderer.render(scene, camera);
         }
 
