@@ -3,225 +3,224 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hand Tracked 3D Particles</title>
+    <title>Heart Glitter Ultra - Polished</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
-        #ui { position: absolute; top: 20px; left: 20px; color: white; pointer-events: none; text-shadow: 1px 1px 2px black; }
-        canvas { display: block; }
-        video { 
-            transform: scaleX(-1); 
-            position: absolute; 
-            bottom: 10px; right: 10px; 
-            width: 160px; 
-            border: 2px solid #444; 
-            border-radius: 8px; 
-        }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial', sans-serif; }
+        #ui { position: absolute; top: 30px; left: 30px; color: white; z-index: 10; pointer-events: none; }
+        #status { font-weight: bold; font-size: 1.5rem; color: #ff0077; text-shadow: 0 0 20px #ff0077; margin-top: 10px; transition: all 0.3s; }
+        .guide { font-size: 14px; opacity: 0.7; background: rgba(255,255,255,0.05); padding: 20px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(5px); }
+        #video-container { position: absolute; bottom: 30px; right: 30px; width: 220px; height: 165px; border: 3px solid #ff0077; border-radius: 15px; overflow: hidden; transform: scaleX(-1); box-shadow: 0 0 20px rgba(255,0,119,0.4); }
+        video { width: 100%; height: 100%; object-fit: cover; }
     </style>
 </head>
 <body>
 
-<div id="ui">
-    <h1>Gesture Particles</h1>
-    <p>Show hand to begin.</p>
-    <p>• Pinch to Explode/Change Color<br>• Move hand to Rotate System<br>• Index finger attracts particles</p>
-    <p id="shape-name">Current Shape: Sphere</p>
-</div>
+    <div id="ui">
+        <div class="guide">
+            🤟 <b>I Love You:</b> Neon Pulse & Size Boost<br>
+            👏 <b>Clap Hands:</b> Particle Explosion / Vanish<br>
+            ↔️ <b>Move Apart:</b> Grow Heart<br>
+            ✨ <b>Fingertips:</b> Magic Glitter Trails
+        </div>
+        <div id="status">INITIALING...</div>
+    </div>
 
-<video id="video" autoplay playsinline muted></video>
+    <div id="video-container"><video id="input_video"></video></div>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
-  }
-}
-</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
-<script type="module">
-import * as THREE from 'three';
-import { Hands } from "https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js";
-import { Camera } from "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js";
+    <script>
+        const PARTICLE_COUNT = 9000;
+        const GLITTER_COUNT = 1500;
+        let scene, camera, renderer, heartSystem, glitterSystem;
+        let heartTargetScale = 1;
+        let isILYActive = false;
 
-// --- Config ---
-const PARTICLE_COUNT = 5000;
-const shapes = ['Sphere', 'Heart', 'Saturn', 'Firework'];
-let currentShapeIndex = 0;
-
-// --- Three.js Setup ---
-const scene = new THREE.Scene();
-const camera3D = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
-camera3D.position.z = 5;
-
-// Particle Buffers
-const geometry = new THREE.BufferGeometry();
-const positions = new Float32Array(PARTICLE_COUNT * 3);
-const targetPositions = new Float32Array(PARTICLE_COUNT * 3);
-const colors = new Float32Array(PARTICLE_COUNT * 3);
-
-for (let i = 0; i < PARTICLE_COUNT; i++) {
-    positions[i*3] = (Math.random() - 0.5) * 10;
-    positions[i*3+1] = (Math.random() - 0.5) * 10;
-    positions[i*3+2] = (Math.random() - 0.5) * 10;
-    colors[i*3] = colors[i*3+1] = colors[i*3+2] = 1;
-}
-
-geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-const material = new THREE.PointsMaterial({
-    size: 0.05,
-    vertexColors: true,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false
-});
-
-const particleSystem = new THREE.Points(geometry, material);
-scene.add(particleSystem);
-
-// --- Shape Logic ---
-function setShape(type) {
-    document.getElementById('shape-name').innerText = `Current Shape: ${type}`;
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
-        let x, y, z;
-        if (type === 'Sphere') {
-            const phi = Math.acos(-1 + (2 * i) / PARTICLE_COUNT);
-            const theta = Math.sqrt(PARTICLE_COUNT * Math.PI) * phi;
-            x = 2 * Math.cos(theta) * Math.sin(phi);
-            y = 2 * Math.sin(theta) * Math.sin(phi);
-            z = 2 * Math.cos(phi);
-        } else if (type === 'Heart') {
-            const t = (i / PARTICLE_COUNT) * Math.PI * 2;
-            x = 0.15 * (16 * Math.pow(Math.sin(t), 3));
-            y = 0.15 * (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
-            z = (Math.random() - 0.5) * 0.5;
-        } else if (type === 'Saturn') {
-            if (i < PARTICLE_COUNT * 0.4) {
-                const phi = Math.random()*Math.PI*2;
-                const theta = Math.random()*Math.PI;
-                x = 1.2 * Math.cos(phi)*Math.sin(theta);
-                y = 1.2 * Math.sin(phi)*Math.sin(theta);
-                z = 1.2 * Math.cos(theta);
-            } else {
-                const angle = Math.random()*Math.PI*2;
-                const radius = 1.8 + Math.random()*0.8;
-                x = radius * Math.cos(angle);
-                y = radius * Math.sin(angle)*0.3;
-                z = radius * Math.sin(angle);
+        // --- Shaders for a "Glowy" Heart ---
+        const vertexShader = `
+            attribute vec3 customColor;
+            varying vec3 vColor;
+            uniform float uTime;
+            uniform float uSize;
+            uniform float uPulse;
+            void main() {
+                vColor = customColor;
+                vec3 pos = position;
+                // Add a wave effect
+                float wave = sin(uTime * 3.0 + pos.y * 2.0) * (0.1 + uPulse * 0.5);
+                pos += normal * wave;
+                
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                gl_PointSize = (uSize + (uPulse * 10.0)) * (30.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
             }
-        } else if (type === 'Firework') {
-            const r = Math.random() * 3;
-            const phi = Math.random() * Math.PI * 2;
-            const theta = Math.random() * Math.PI;
-            x = r*Math.cos(phi)*Math.sin(theta);
-            y = r*Math.sin(phi)*Math.sin(theta);
-            z = r*Math.cos(theta);
+        `;
+
+        const fragmentShader = `
+            varying vec3 vColor;
+            void main() {
+                float d = distance(gl_PointCoord, vec2(0.5));
+                if (d > 0.5) discard;
+                // Bright center, soft edges
+                float strength = 0.05 / d;
+                gl_FragColor = vec4(vColor * strength, 0.8);
+            }
+        `;
+
+        function initThree() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.z = 18;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // 1. HEART SYSTEM
+            const heartGeo = new THREE.BufferGeometry();
+            const positions = [];
+            const colors = [];
+            const normals = [];
+            for(let i=0; i<PARTICLE_COUNT; i++) {
+                const t = Math.random() * Math.PI * 2;
+                const x = 16 * Math.pow(Math.sin(t), 3);
+                const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+                const p = new THREE.Vector3(x * 0.4, y * 0.4, (Math.random()-0.5) * 1.5);
+                positions.push(p.x, p.y, p.z);
+                normals.push(p.x, p.y, p.z); // Used for expansion
+                colors.push(1, 0.05, 0.4); // Deep Pink
+            }
+            heartGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            heartGeo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+            heartGeo.setAttribute('customColor', new THREE.Float32BufferAttribute(colors, 3));
+            
+            const heartMat = new THREE.ShaderMaterial({
+                uniforms: { uTime: {value: 0}, uSize: {value: 3.5}, uPulse: {value: 0} },
+                vertexShader, fragmentShader, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            heartSystem = new THREE.Points(heartGeo, heartMat);
+            scene.add(heartSystem);
+
+            // 2. GLITTER SYSTEM
+            const glitterGeo = new THREE.BufferGeometry();
+            glitterGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(GLITTER_COUNT * 3), 3));
+            const glitterMat = new THREE.PointsMaterial({ 
+                color: 0xffffff, size: 0.12, transparent: true, blending: THREE.AdditiveBlending, map: new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/snowflake1.png')
+            });
+            glitterSystem = new THREE.Points(glitterGeo, glitterMat);
+            scene.add(glitterSystem);
         }
-        targetPositions[i*3]=x; targetPositions[i*3+1]=y; targetPositions[i*3+2]=z;
-    }
-}
-setShape('Sphere');
 
-// --- Camera / Hand Tracking Fix ---
-const videoElement = document.getElementById('video');
-let handX=0, handY=0, isPinching=false;
+        function initTracking() {
+            const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+            hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
 
-async function initCamera() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-        videoElement.srcObject = stream;
-        await videoElement.play();
-        return true;
-    } catch(e) {
-        alert("Camera access denied or unavailable");
-        return false;
-    }
-}
+            hands.onResults(results => {
+                const status = document.getElementById('status');
+                const gArray = glitterSystem.geometry.attributes.position.array;
+                let gIndex = 0;
+                let ilyDetectedInFrame = false;
 
-const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
-hands.setOptions({
-    maxNumHands: 1,
-    modelComplexity: 1,
-    minDetectionConfidence: 0.5,
-    minTrackingConfidence: 0.5
-});
+                if (!results.multiHandLandmarks.length) {
+                    status.innerText = "Show Hands ✨";
+                    return;
+                }
 
-hands.onResults((results)=>{
-    if(!results.multiHandLandmarks?.length) return;
-    const lm = results.multiHandLandmarks[0];
+                results.multiHandLandmarks.forEach((hand) => {
+                    // Update Glitter (Trace all 5 fingers)
+                    [4, 8, 12, 16, 20].forEach(tipIdx => {
+                        for(let i=0; i<15; i++) { 
+                            if(gIndex >= GLITTER_COUNT * 3) break;
+                            gArray[gIndex++] = (hand[tipIdx].x - 0.5) * -35 + (Math.random()-0.5)*0.5;
+                            gArray[gIndex++] = (hand[tipIdx].y - 0.5) * -25 + (Math.random()-0.5)*0.5;
+                            gArray[gIndex++] = (hand[tipIdx].z * 15);
+                        }
+                    });
 
-    handX = (lm[8].x-0.5)*10;
-    handY = -(lm[8].y-0.5)*10;
+                    // POLISHED "I LOVE YOU" GESTURE (🤟)
+                    // Index up, Pinky up, Thumb out, Middle and Ring folded
+                    const isIndexUp = hand[8].y < hand[6].y;
+                    const isPinkyUp = hand[20].y < hand[18].y;
+                    const isMiddleDown = hand[12].y > hand[10].y;
+                    const isRingDown = hand[16].y > hand[14].y;
 
-    const dx = lm[4].x - lm[8].x;
-    const dy = lm[4].y - lm[8].y;
-    const dist = Math.sqrt(dx*dx+dy*dy);
+                    if (isIndexUp && isPinkyUp && isMiddleDown && isRingDown) {
+                        ilyDetectedInFrame = true;
+                    }
+                });
+                glitterSystem.geometry.attributes.position.needsUpdate = true;
 
-    if(dist < 0.05 && !isPinching){
-        isPinching=true;
-        currentShapeIndex=(currentShapeIndex+1)%shapes.length;
-        setShape(shapes[currentShapeIndex]);
-        changeColors();
-    } else if(dist > 0.1){ isPinching=false; }
+                // Handle ILY State
+                isILYActive = ilyDetectedInFrame;
+                if(isILYActive) {
+                    status.innerText = "🤟 I LOVE YOU SO MUCH! 🤟";
+                    status.style.color = "#00f2ff";
+                    status.style.textShadow = "0 0 20px #00f2ff";
+                } else {
+                    status.style.color = "#ff0077";
+                    status.style.textShadow = "0 0 20px #ff0077";
+                }
 
-    particleSystem.rotation.y = THREE.MathUtils.lerp(particleSystem.rotation.y, (lm[0].x-0.5)*2, 0.1);
-    particleSystem.rotation.x = THREE.MathUtils.lerp(particleSystem.rotation.x, (lm[0].y-0.5)*2, 0.1);
-});
+                // Handle Two-Hand Scaling
+                if (results.multiHandLandmarks.length === 2) {
+                    const h1 = results.multiHandLandmarks[0][9];
+                    const h2 = results.multiHandLandmarks[1][9];
+                    const dist = Math.hypot(h1.x - h2.x, h1.y - h2.y);
+                    
+                    // Interaction: If hands are closer than 0.18, heart "explodes" away
+                    heartTargetScale = THREE.MathUtils.mapLinear(dist, 0.15, 0.7, 0.0, 3.0);
+                    heartTargetScale = Math.max(0, heartTargetScale);
+                    
+                    if(dist < 0.18) status.innerText = "👏 HEART VANISHED!";
+                    else if(!isILYActive) status.innerText = "↔️ PULL TO GROW";
+                } else {
+                    heartTargetScale = 1.0;
+                }
+            });
 
-function changeColors(){
-    const r=Math.random(), g=Math.random(), b=Math.random();
-    const colAttr = geometry.attributes.color;
-    for(let i=0;i<PARTICLE_COUNT;i++){
-        colAttr.setXYZ(i, r+Math.random()*0.2, g+Math.random()*0.2, b+Math.random()*0.2);
-    }
-    colAttr.needsUpdate=true;
-}
+            const cameraPipe = new Camera(document.getElementById('input_video'), {
+                onFrame: async () => { await hands.send({image: document.getElementById('input_video')}); },
+                width: 640, height: 480
+            });
+            cameraPipe.start();
+        }
 
-// --- Boot ---
-(async()=>{
-    const ok = await initCamera();
-    if(!ok) return;
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = performance.now() * 0.001;
+            
+            if(heartSystem) {
+                heartSystem.material.uniforms.uTime.value = time;
+                heartSystem.rotation.y += 0.015;
+                
+                // ILY Pulse Effect
+                const pulseVal = isILYActive ? (Math.sin(time * 10) * 0.5 + 0.5) : 0;
+                heartSystem.material.uniforms.uPulse.value = THREE.MathUtils.lerp(heartSystem.material.uniforms.uPulse.value, pulseVal, 0.1);
 
-    const cam = new Camera(videoElement,{
-        onFrame: async()=>{ await hands.send({ image: videoElement }); },
-        width:640,height:480
-    });
-    cam.start();
-})();
+                // Smooth scaling
+                const target = isILYActive ? heartTargetScale * 1.5 : heartTargetScale;
+                heartSystem.scale.lerp(new THREE.Vector3(target, target, target), 0.15);
 
-// --- Animation ---
-function animate(){
-    requestAnimationFrame(animate);
-    const posAttr = geometry.attributes.position;
-    for(let i=0;i<PARTICLE_COUNT;i++){
-        const px=posAttr.getX(i), py=posAttr.getY(i), pz=posAttr.getZ(i);
-        let tx=targetPositions[i*3], ty=targetPositions[i*3+1], tz=targetPositions[i*3+2];
+                // Color Shift on ILY
+                if(isILYActive) {
+                    heartSystem.rotation.z += 0.05;
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
 
-        if(isPinching){ tx*=2.5; ty*=2.5; tz*=2.5; }
+        initThree();
+        initTracking();
+        animate();
 
-        const dx = handX-px, dy=handY-py;
-        const dist = Math.sqrt(dx*dx+dy*dy);
-        if(dist<2){ tx+=dx*0.5; ty+=dy*0.5; }
-
-        posAttr.setXYZ(i,
-            THREE.MathUtils.lerp(px, tx, 0.05),
-            THREE.MathUtils.lerp(py, ty, 0.05),
-            THREE.MathUtils.lerp(pz, tz, 0.05)
-        );
-    }
-    posAttr.needsUpdate=true;
-    renderer.render(scene, camera3D);
-}
-animate();
-
-window.addEventListener('resize',()=>{
-    camera3D.aspect = window.innerWidth / window.innerHeight;
-    camera3D.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
-</script>
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
 </body>
 </html>
