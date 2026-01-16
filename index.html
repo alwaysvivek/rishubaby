@@ -1,206 +1,197 @@
-"use client";
-import React, { useRef, useEffect, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import * as THREE from "three";
-import { Hands } from "@mediapipe/hands";
-import * as cam from "@mediapipe/camera_utils";
-
-// --- ASSETS & CONFIG ---
-const COMPLIMENTS = ["Meri Rabbit 🐰", "Rishubabu 😽", "Cutiepie 🥧", "Rishubarbie 🎀", "Mumbai ✈️ Delhi", "Jaan ✨"];
-const IMG_A = "https://github.com/alwaysvivek/rishubaby/blob/main/a.png?raw=true";
-const IMG_ABC = "https://github.com/alwaysvivek/rishubaby/blob/main/abc.JPG?raw=true";
-const SONG_URL = "https://github.com/alwaysvivek/rishubaby/blob/main/1.mp3?raw=true";
-
-// --- 3D PARTICLE COMPONENT ---
-function ParticleSystem({ handPos, gesture }) {
-  const count = 1500;
-  const mesh = useRef();
-  const light = useRef();
-  
-  // Create initial particle data
-  const particles = useRef(Array.from({ length: count }, () => ({
-    t: Math.random() * 100,
-    speed: 0.01 + Math.random() / 50,
-    radius: 5 + Math.random() * 5,
-    offset: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(10)
-  })));
-
-  const dummy = new THREE.Object3D();
-
-  useFrame((state) => {
-    const time = state.clock.getElapsedTime();
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rishu's World | Hand Tracking</title>
     
-    particles.current.forEach((p, i) => {
-      let { t, speed, radius, offset } = p;
-      p.t += speed;
+    <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
-      // Base Position: Circular Orbit
-      let x = Math.cos(p.t) * radius;
-      let y = Math.sin(p.t) * radius;
-      let z = Math.sin(p.t * 0.5) * 5;
-
-      // --- GESTURE LOGIC ---
-      if (handPos) {
-        const targetX = (handPos.x - 0.5) * 20; // Map 0-1 to screen space
-        const targetY = (0.5 - handPos.y) * 20;
-
-        if (gesture === "PINCH") {
-          // Attract to fingers
-          x = THREE.MathUtils.lerp(x, targetX + offset.x * 0.2, 0.1);
-          y = THREE.MathUtils.lerp(y, targetY + offset.y * 0.2, 0.1);
-        } else if (gesture === "OPEN") {
-          // Explode / Scatter
-          x += offset.x * 5;
-          y += offset.y * 5;
-        } else if (gesture === "BRIDGE") {
-          // "Mumbai to Delhi" - Form a straight line connection
-          const progress = i / count;
-          x = THREE.MathUtils.lerp(-10, 10, progress);
-          y = THREE.MathUtils.lerp(-5, 5, progress) + Math.sin(time + i) * 0.2;
-          z = 0;
-        }
-      }
-
-      dummy.position.set(x, y, z);
-      const s = Math.sin(p.t) * 0.1 + 0.1;
-      dummy.scale.set(s, s, s);
-      dummy.updateMatrix();
-      mesh.current.setMatrixAt(i, dummy.matrix);
-    });
-    mesh.current.instanceMatrix.needsUpdate = true;
-  });
-
-  return (
-    <>
-      <pointLight ref={light} distance={40} intensity={2} color="#ff69b4" />
-      <instancedMesh ref={mesh} args={[null, null, count]}>
-        <sphereGeometry args={[0.2, 8, 8]} />
-        <meshStandardMaterial color="#ff69b4" emissive="#ff1493" />
-      </instancedMesh>
-    </>
-  );
-}
-
-// --- MAIN PAGE COMPONENT ---
-export default function RishuHandGame() {
-  const videoRef = useRef(null);
-  const [handPos, setHandPos] = useState(null);
-  const [gesture, setGesture] = useState("NONE");
-  const [activeComp, setActiveComp] = useState("");
-  const [started, setStarted] = useState(false);
-
-  useEffect(() => {
-    if (!started) return;
-
-    const hands = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
-    });
-
-    hands.setOptions({
-      maxNumHands: 1,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
-
-    hands.onResults((results) => {
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        const landmarks = results.multiHandLandmarks[0];
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: -apple-system, sans-serif; }
+        canvas { display: block; }
         
-        // Tracking Index Finger Tip
-        setHandPos({ x: landmarks[8].x, y: landmarks[8].y });
-
-        // --- GESTURE DETECTION ---
-        const thumbTip = landmarks[4];
-        const indexTip = landmarks[8];
-        const middleTip = landmarks[12];
-        const pinkyTip = landmarks[20];
-
-        // 1. Pinch Detection (Thumb + Index close)
-        const distPinch = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
-        
-        // 2. Mumbai-Delhi Bridge (Pinky and Thumb far apart horizontally)
-        const bridgeDist = Math.abs(pinkyTip.x - thumbTip.x);
-
-        if (distPinch < 0.05) {
-          setGesture("PINCH");
-          if (Math.random() > 0.95) setActiveComp(COMPLIMENTS[Math.floor(Math.random() * COMPLIMENTS.length)]);
-        } else if (bridgeDist > 0.4) {
-          setGesture("BRIDGE");
-        } else if (indexTip.y < landmarks[5].y && middleTip.y < landmarks[9].y) {
-          setGesture("OPEN");
-        } else {
-          setGesture("NONE");
+        #gate {
+            position: fixed; inset: 0; background: #000; z-index: 100;
+            display: flex; justify-content: center; align-items: center;
         }
-      } else {
-        setHandPos(null);
-        setGesture("NONE");
-      }
-    });
+        
+        .btn {
+            background: #fff; color: #000; border: none; padding: 20px 40px;
+            border-radius: 50px; font-weight: bold; cursor: pointer;
+            letter-spacing: 2px; text-transform: uppercase; transition: 0.3s;
+        }
 
-    if (videoRef.current) {
-      const camera = new cam.Camera(videoRef.current, {
-        onFrame: async () => {
-          await hands.send({ image: videoRef.current });
-        },
-        width: 640,
-        height: 480,
-      });
-      camera.start();
-    }
-  }, [started]);
+        #ui-layer {
+            position: fixed; top: 10%; width: 100%; text-align: center;
+            pointer-events: none; color: white; z-index: 10;
+        }
 
-  const startExperience = () => {
-    setStarted(true);
-    const audio = new Audio(SONG_URL);
-    audio.loop = true;
-    audio.play();
-  };
+        #compliment { color: #ff69b4; font-size: 1.5rem; margin-top: 20px; height: 30px; }
 
-  return (
-    <div className="relative w-full h-screen bg-black overflow-hidden font-sans">
-      {!started ? (
-        <div className="absolute inset-0 flex items-center justify-center z-50 bg-black">
-          <button 
-            onClick={startExperience}
-            className="px-8 py-4 bg-white text-black rounded-full font-bold hover:scale-110 transition-transform"
-          >
-            ENTER RISHU'S WORLD
-          </button>
-        </div>
-      ) : (
-        <>
-          <video ref={videoRef} className="hidden" playsInline />
-          
-          {/* 3D Scene */}
-          <div className="absolute inset-0">
-            <Canvas camera={{ position: [0, 0, 20], fov: 50 }}>
-              <ambientLight intensity={0.5} />
-              <ParticleSystem handPos={handPos} gesture={gesture} />
-            </Canvas>
-          </div>
+        .floating-img {
+            position: fixed; width: 150px; height: 150px; border-radius: 15px;
+            object-fit: cover; border: 3px solid white; display: none;
+            box-shadow: 0 0 30px rgba(255,105,180,0.5);
+            animation: bounce 2s infinite ease-in-out;
+        }
 
-          {/* UI Overlay */}
-          <div className="absolute top-10 left-0 w-full text-center pointer-events-none">
-            <h1 className="text-white text-4xl font-light tracking-[10px] uppercase opacity-50">
-              {gesture === "BRIDGE" ? "Mumbai ❤️ Delhi" : "Rishubarbie"}
-            </h1>
-            <p className="text-pink-400 mt-4 text-xl">{activeComp}</p>
-          </div>
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
 
-          {/* Floating Images on Gestures */}
-          {gesture === "BRIDGE" && (
-            <div className="absolute inset-0 flex justify-around items-center pointer-events-none">
-              <img src={IMG_A} className="w-40 h-40 object-cover rounded-lg shadow-2xl animate-bounce" />
-              <img src={IMG_ABC} className="w-40 h-40 object-cover rounded-lg shadow-2xl animate-pulse" />
-            </div>
-          )}
+        #hint {
+            position: fixed; bottom: 30px; width: 100%; text-align: center;
+            color: rgba(255,255,255,0.4); font-size: 0.7rem; letter-spacing: 3px;
+        }
 
-          <div className="absolute bottom-10 w-full text-center text-white text-xs tracking-widest opacity-30">
-            PINCH TO COLLECT • SPREAD TO FLY • WIDE PALM FOR THE BRIDGE
-          </div>
-        </>
-      )}
+        video { transform: scaleX(-1); visibility: hidden; position: absolute; }
+    </style>
+</head>
+<body>
+
+    <div id="gate">
+        <button class="btn" onclick="startApp()">Enter Rishu's World</button>
     </div>
-  );
-}
+
+    <div id="ui-layer">
+        <h1 id="title" style="letter-spacing: 10px; font-weight: 200;">RISHUBARBIE</h1>
+        <div id="compliment"></div>
+    </div>
+
+    <img id="imgA" src="https://github.com/alwaysvivek/rishubaby/blob/main/a.png?raw=true" class="floating-img" style="left: 10%;">
+    <img id="imgABC" src="https://github.com/alwaysvivek/rishubaby/blob/main/abc.JPG?raw=true" class="floating-img" style="right: 10%;">
+
+    <div id="hint">PINCH TO COLLECT • SPREAD FOR BRIDGE • OPEN TO SCATTER</div>
+
+    <video id="webcam" autoplay playsinline></video>
+    <audio id="bgMusic" src="https://github.com/alwaysvivek/rishubaby/blob/main/1.mp3?raw=true" loop></audio>
+
+    <script>
+        const COMPLIMENTS = ["Meri Rabbit 🐰", "Rishubabu 😽", "Cutiepie 🥧", "Rishubarbie 🎀", "Mumbai ✈️ Delhi", "Jaan ✨"];
+        let scene, camera, renderer, particles, particleData = [];
+        let handX = 0, handY = 0, currentGesture = "NONE";
+        
+        const count = 2000;
+        const dummy = new THREE.Object3D();
+
+        function initThree() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 15;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            const geo = new THREE.SphereGeometry(0.1, 8, 8);
+            const mat = new THREE.MeshStandardMaterial({ color: 0xff69b4, emissive: 0xff1493 });
+            particles = new THREE.InstancedMesh(geo, mat, count);
+
+            for (let i = 0; i < count; i++) {
+                particleData.push({
+                    t: Math.random() * 100,
+                    speed: 0.01 + Math.random() / 50,
+                    radius: 5 + Math.random() * 5,
+                    offset: new THREE.Vector3((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10)
+                });
+            }
+
+            const light = new THREE.PointLight(0xffffff, 1);
+            light.position.set(5, 5, 5);
+            scene.add(light, new THREE.AmbientLight(0x404040), particles);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = Date.now() * 0.001;
+
+            particleData.forEach((p, i) => {
+                p.t += p.speed;
+                let x = Math.cos(p.t) * p.radius;
+                let y = Math.sin(p.t) * p.radius;
+                let z = Math.sin(p.t * 0.5) * 5;
+
+                if (currentGesture === "PINCH") {
+                    x = THREE.MathUtils.lerp(x, handX + p.offset.x * 0.2, 0.1);
+                    y = THREE.MathUtils.lerp(y, handY + p.offset.y * 0.2, 0.1);
+                } else if (currentGesture === "BRIDGE") {
+                    const progress = i / count;
+                    x = THREE.MathUtils.lerp(-15, 15, progress);
+                    y = Math.sin(time + i * 0.1) * 2;
+                    z = 0;
+                } else if (currentGesture === "OPEN") {
+                    x += p.offset.x * 2;
+                    y += p.offset.y * 2;
+                }
+
+                dummy.position.set(x, y, z);
+                dummy.scale.setScalar(Math.sin(p.t) * 0.1 + 0.1);
+                dummy.updateMatrix();
+                particles.setMatrixAt(i, dummy.matrix);
+            });
+
+            particles.instanceMatrix.needsUpdate = true;
+            renderer.render(scene, camera);
+        }
+
+        function startApp() {
+            document.getElementById('gate').style.display = 'none';
+            document.getElementById('bgMusic').play();
+            initThree();
+            setupMediaPipe();
+            animate();
+        }
+
+        function setupMediaPipe() {
+            const videoElement = document.getElementById('webcam');
+            const hands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+
+            hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+
+            hands.onResults((results) => {
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    const marks = results.multiHandLandmarks[0];
+                    handX = (0.5 - marks[8].x) * 30; // Inverse X for mirroring
+                    handY = (0.5 - marks[8].y) * 20;
+
+                    const thumb = marks[4], index = marks[8], pinky = marks[20];
+                    const pinchDist = Math.hypot(thumb.x - index.x, thumb.y - index.y);
+                    const bridgeDist = Math.abs(pinky.x - thumb.x);
+
+                    if (pinchDist < 0.05) {
+                        currentGesture = "PINCH";
+                        document.getElementById('title').innerText = "HOLDING YOU";
+                        if(Math.random() > 0.98) document.getElementById('compliment').innerText = COMPLIMENTS[Math.floor(Math.random()*COMPLIMENTS.length)];
+                    } else if (bridgeDist > 0.45) {
+                        currentGesture = "BRIDGE";
+                        document.getElementById('title').innerText = "MUMBAI ❤️ DELHI";
+                        document.querySelectorAll('.floating-img').forEach(el => el.style.display = 'block');
+                    } else {
+                        currentGesture = "NONE";
+                        document.getElementById('title').innerText = "RISHUBARBIE";
+                        document.querySelectorAll('.floating-img').forEach(el => el.style.display = 'none');
+                    }
+                }
+            });
+
+            const cameraPipe = new Camera(videoElement, {
+                onFrame: async () => { await hands.send({ image: videoElement }); },
+                width: 640, height: 480
+            });
+            cameraPipe.start();
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
