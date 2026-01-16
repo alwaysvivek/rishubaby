@@ -3,143 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rishu's World | Hand Tracking</title>
+    <title>Rishu's World | Hand Tracking Fix</title>
     
     <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
-        
+        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
         #gate {
-            position: fixed; inset: 0; background: radial-gradient(circle, #222, #000); z-index: 100;
+            position: fixed; inset: 0; background: #000; z-index: 100;
             display: flex; flex-direction: column; justify-content: center; align-items: center; color: white;
         }
-        
         .btn {
-            background: #ff69b4; color: white; border: none; padding: 18px 40px;
-            border-radius: 50px; font-weight: bold; cursor: pointer;
-            font-size: 1.2rem; box-shadow: 0 0 20px rgba(255, 105, 180, 0.5); transition: 0.3s;
+            background: #ff69b4; color: white; border: none; padding: 20px 50px;
+            border-radius: 50px; font-weight: bold; cursor: pointer; font-size: 1.2rem;
         }
-
-        /* Video Preview - Helps the user see what's happening */
         #webcam {
-            position: fixed; bottom: 20px; left: 20px; width: 160px; height: 120px;
-            border-radius: 10px; border: 2px solid #ff69b4; z-index: 50; transform: scaleX(-1);
-            background: #222;
+            position: fixed; bottom: 10px; left: 10px; width: 140px; height: 100px;
+            border: 2px solid #ff69b4; z-index: 50; transform: scaleX(-1); border-radius: 10px;
         }
-
-        #ui-layer {
+        #ui {
             position: fixed; top: 10%; width: 100%; text-align: center;
             pointer-events: none; color: white; z-index: 10;
         }
-
-        #status-text {
-            color: #ff69b4; font-size: 1.2rem; font-weight: bold;
-            text-transform: uppercase; letter-spacing: 2px; margin-top: 10px;
-        }
-
         .floating-img {
-            position: fixed; width: 200px; height: auto; border-radius: 20px;
-            display: none; box-shadow: 0 0 50px rgba(255,105,180,0.8);
-            z-index: 5; transition: all 0.5s ease;
+            position: fixed; width: 180px; display: none; border-radius: 15px;
+            box-shadow: 0 0 30px #ff69b4; z-index: 5;
         }
-
-        #controls-hint {
-            position: fixed; bottom: 30px; width: 100%; text-align: center;
-            color: rgba(255,255,255,0.6); font-size: 0.8rem; letter-spacing: 2px;
+        #hint {
+            position: fixed; bottom: 20px; width: 100%; text-align: center;
+            color: rgba(255,255,255,0.5); font-size: 0.8rem;
         }
     </style>
 </head>
 <body>
 
     <div id="gate">
-        <h2 style="margin-bottom: 30px; letter-spacing: 5px;">RISHUBARBIE WORLD</h2>
         <button class="btn" onclick="startApp()">START MAGIC</button>
-        <p style="margin-top: 20px; opacity: 0.6;">Make sure your camera is on!</p>
     </div>
 
-    <div id="ui-layer">
-        <h1 id="main-title" style="letter-spacing: 12px; font-size: 3rem; margin:0;">RISHU</h1>
-        <div id="status-text">Wave your hand to start</div>
+    <div id="ui">
+        <h1 id="title" style="letter-spacing: 8px;">READY...</h1>
+        <div id="status" style="color: #ff69b4; font-weight: bold;">WAVE YOUR HAND</div>
     </div>
 
     <video id="webcam" autoplay playsinline></video>
 
-    <img id="imgA" src="https://github.com/alwaysvivek/rishubaby/blob/main/a.png?raw=true" class="floating-img" style="left: 15%; top: 30%;">
-    <img id="imgABC" src="https://github.com/alwaysvivek/rishubaby/blob/main/abc.JPG?raw=true" class="floating-img" style="right: 15%; top: 30%;">
+    <img id="imgA" src="https://github.com/alwaysvivek/rishubaby/blob/main/a.png?raw=true" class="floating-img" style="left: 10%; top: 30%;">
+    <img id="imgABC" src="https://github.com/alwaysvivek/rishubaby/blob/main/abc.JPG?raw=true" class="floating-img" style="right: 10%; top: 30%;">
 
-    <div id="controls-hint">
-        🤏 PINCH = ATTRACT • 🖐️ OPEN = SCATTER • 👐 WIDE = MUMBAI TO DELHI
-    </div>
+    <div id="hint">CLOSE FINGERS = PINCH | WIDE HAND = BRIDGE | RELAXED = NORMAL</div>
 
     <audio id="bgMusic" src="https://github.com/alwaysvivek/rishubaby/blob/main/1.mp3?raw=true" loop></audio>
 
     <script>
-        const COMPLIMENTS = ["Meri Jaan ❤️", "Prettiest Girl ✨", "Rishubabu 😽", "Cutiepie 🥧", "My Barbie 🎀"];
+        const COMPLIMENTS = ["Meri Jaan ❤️", "Prettiest Girl ✨", "Rishubabu 😽", "Cutiepie 🥧", "Rishubarbie 🎀"];
         let scene, camera, renderer, particles, pData = [];
         let hX = 0, hY = 0, currentG = "NONE";
-        
-        const count = 1200; // Reduced count for smoother performance
+        const count = 1000;
         const dummy = new THREE.Object3D();
 
         function initThree() {
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
             camera.position.z = 15;
-
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // Brighter, slightly larger particles
-            const geo = new THREE.SphereGeometry(0.15, 6, 6);
-            const mat = new THREE.MeshStandardMaterial({ 
-                color: 0xff69b4, 
-                emissive: 0xff1493,
-                emissiveIntensity: 2
-            });
-            particles = new THREE.InstancedMesh(geo, mat, count);
+            const mat = new THREE.MeshStandardMaterial({ color: 0xff69b4, emissive: 0xff1493, emissiveIntensity: 1.5 });
+            particles = new THREE.InstancedMesh(new THREE.SphereGeometry(0.12, 6, 6), mat, count);
 
             for (let i = 0; i < count; i++) {
                 pData.push({
                     t: Math.random() * 100,
-                    speed: 0.02 + Math.random() * 0.02,
-                    radius: 4 + Math.random() * 6,
-                    noise: new THREE.Vector3((Math.random()-0.5)*5, (Math.random()-0.5)*5, (Math.random()-0.5)*5)
+                    speed: 0.02 + Math.random() * 0.03,
+                    radius: 3 + Math.random() * 7,
+                    noise: new THREE.Vector3((Math.random()-0.5)*4, (Math.random()-0.5)*4, (Math.random()-0.5)*4)
                 });
             }
-            scene.add(particles, new THREE.AmbientLight(0xffffff, 0.8));
+            scene.add(particles, new THREE.AmbientLight(0xffffff, 1));
         }
 
         function animate() {
             requestAnimationFrame(animate);
             const time = Date.now() * 0.001;
-
             pData.forEach((p, i) => {
                 p.t += p.speed;
                 let x = Math.cos(p.t) * p.radius;
                 let y = Math.sin(p.t) * p.radius;
-                let z = Math.cos(p.t * 0.5) * 2;
+                let z = Math.sin(p.t * 0.5) * 2;
 
                 if (currentG === "PINCH") {
-                    x = THREE.MathUtils.lerp(x, hX + p.noise.x * 0.5, 0.15);
-                    y = THREE.MathUtils.lerp(y, hY + p.noise.y * 0.5, 0.15);
-                    z = THREE.MathUtils.lerp(z, 0, 0.15);
+                    x = THREE.MathUtils.lerp(x, hX + p.noise.x, 0.1);
+                    y = THREE.MathUtils.lerp(y, hY + p.noise.y, 0.1);
                 } else if (currentG === "BRIDGE") {
-                    const ratio = i / count;
-                    x = THREE.MathUtils.lerp(-18, 18, ratio);
-                    y = Math.sin(time * 2 + i * 0.1) * 1.5;
-                    z = 0;
+                    x = THREE.MathUtils.lerp(-18, 18, i/count);
+                    y = Math.sin(time * 3 + i * 0.2) * 2;
                 }
 
                 dummy.position.set(x, y, z);
-                dummy.scale.setScalar(0.8 + Math.sin(p.t) * 0.3);
+                dummy.scale.setScalar(0.7 + Math.sin(p.t)*0.3);
                 dummy.updateMatrix();
                 particles.setMatrixAt(i, dummy.matrix);
             });
-
             particles.instanceMatrix.needsUpdate = true;
             renderer.render(scene, camera);
         }
@@ -148,66 +116,44 @@
             document.getElementById('gate').style.display = 'none';
             document.getElementById('bgMusic').play();
             initThree();
-            setupTracking();
-            animate();
-        }
-
-        function setupTracking() {
-            const video = document.getElementById('webcam');
-            const hands = new Hands({
-                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-            });
-
-            hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6 });
-
+            const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+            hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.5 });
+            
             hands.onResults((res) => {
                 if (res.multiHandLandmarks && res.multiHandLandmarks.length > 0) {
                     const pts = res.multiHandLandmarks[0];
-                    hX = (0.5 - pts[8].x) * 35; 
-                    hY = (0.5 - pts[8].y) * 25;
-
+                    hX = (0.5 - pts[8].x) * 35; hY = (0.5 - pts[8].y) * 25;
+                    
+                    // EASIER DETECTION LOGIC
                     const thumb = pts[4], index = pts[8], pinky = pts[20];
-                    const pDist = Math.hypot(thumb.x - index.x, thumb.y - index.y);
-                    const bDist = Math.abs(pinky.x - thumb.x);
+                    const pinchDist = Math.hypot(thumb.x - index.x, thumb.y - index.y);
+                    const bridgeDist = Math.hypot(thumb.x - pinky.x, thumb.y - pinky.y);
 
-                    if (pDist < 0.06) {
+                    if (pinchDist < 0.1) { // Wider pinch range
                         currentG = "PINCH";
-                        updateUI("CATCHING HEARTS ❤️", COMPLIMENTS[Math.floor(Date.now()/2000 % COMPLIMENTS.length)]);
-                    } else if (bDist > 0.45) {
+                        setUI("CATCHING HEARTS", COMPLIMENTS[Math.floor(Date.now()/1500 % 5)]);
+                    } else if (bridgeDist > 0.4) { // Trigger bridge if thumb and pinky are far
                         currentG = "BRIDGE";
-                        updateUI("MUMBAI ✈️ DELHI", "Everything for you!");
-                        showImgs(true);
+                        setUI("MUMBAI TO DELHI", "LONG DISTANCE LOVE");
+                        imgs(true);
                     } else {
                         currentG = "NONE";
-                        updateUI("TRACKING...", "RISHUBARBIE");
-                        showImgs(false);
+                        setUI("TRACKING...", "RISHUBARBIE");
+                        imgs(false);
                     }
                 }
             });
 
-            const camInstance = new Camera(video, {
-                onFrame: async () => { await hands.send({ image: video }); },
+            const camInst = new Camera(document.getElementById('webcam'), {
+                onFrame: async () => { await hands.send({ image: document.getElementById('webcam') }); },
                 width: 640, height: 480
             });
-            camInstance.start();
+            camInst.start();
+            animate();
         }
 
-        function updateUI(status, title) {
-            document.getElementById('status-text').innerText = status;
-            document.getElementById('main-title').innerText = title;
-        }
-
-        function showImgs(show) {
-            const display = show ? 'block' : 'none';
-            document.getElementById('imgA').style.display = display;
-            document.getElementById('imgABC').style.display = display;
-        }
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        function setUI(s, t) { document.getElementById('status').innerText = s; document.getElementById('title').innerText = t; }
+        function imgs(s) { document.getElementById('imgA').style.display = s?'block':'none'; document.getElementById('imgABC').style.display = s?'block':'none'; }
     </script>
 </body>
 </html>
