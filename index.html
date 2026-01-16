@@ -7,19 +7,18 @@
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
         #gate { position: fixed; inset: 0; background: #000; z-index: 200; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center; transition: 1s opacity; }
         .btn { background: white; color: black; padding: 20px 40px; border-radius: 50px; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 2px; transition: 0.3s; }
-        .btn:hover { transform: scale(1.05); background: #ff0077; color: white; }
         
         #ui { position: absolute; top: 30px; width: 100%; text-align: center; color: white; z-index: 10; pointer-events: none; }
-        #status { font-weight: 300; font-size: 0.9rem; letter-spacing: 4px; text-transform: uppercase; color: #ff0077; text-shadow: 0 0 10px #ff0077; }
+        #status { font-weight: 300; font-size: 0.9rem; letter-spacing: 4px; text-transform: uppercase; color: #ff0077; }
         
-        #video-container { position: absolute; bottom: 20px; left: 20px; width: 120px; height: 90px; border-radius: 10px; overflow: hidden; opacity: 0.3; transform: scaleX(-1); border: 1px solid rgba(255,255,255,0.3); background: #111; }
+        /* Mirroring the camera for more natural interaction */
+        #video-container { position: absolute; bottom: 20px; left: 20px; width: 160px; height: 120px; border-radius: 10px; overflow: hidden; opacity: 0.5; transform: scaleX(-1); border: 2px solid #ff0077; background: #111; z-index: 100; }
         video { width: 100%; height: 100%; object-fit: cover; }
 
         #hint { position: fixed; bottom: 5%; width: 100%; text-align: center; color: rgba(255,255,255,0.6); z-index: 5; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
@@ -32,68 +31,104 @@
         <button class="btn" id="startBtn">Open the Rift 🎁</button>
     </div>
 
-    <div id="ui">
-        <div id="status">INITIATING...</div>
-    </div>
-
-    <div id="hint">Waiting for camera...</div>
-
-    <div id="video-container"><video id="input_video" playsinline></video></div>
+    <div id="ui"><div id="status">INITIATING...</div></div>
+    <div id="hint">Waiting for camera access...</div>
+    <div id="video-container"><video id="input_video" autoplay playsinline></video></div>
     <audio id="song" src="1.mp3" loop></audio>
 
     <script>
         let scene, camera, renderer, particles, starField;
         let currentMode = 'sphere'; 
         let isExploded = false;
-        const PARTICLE_COUNT = 10000; // Matches 100x100 image data
+        const PARTICLE_COUNT = 10000; 
         
         let posTarget = new Float32Array(PARTICLE_COUNT * 3);
         let colorTarget = new Float32Array(PARTICLE_COUNT * 3);
         let img1Data, img2Data;
 
-        document.getElementById('startBtn').addEventListener('click', () => {
+        // --- 1. START EXPERIENCE ---
+        document.getElementById('startBtn').addEventListener('click', async () => {
+            const audio = document.getElementById('song');
+            audio.play().catch(() => console.log("Audio needs manual interaction"));
+            
+            document.getElementById('gate').style.opacity = '0';
+            setTimeout(() => document.getElementById('gate').style.display = 'none', 1000);
+            
+            // Start loading and camera simultaneously
             initExperience();
         });
 
         async function initExperience() {
-            document.getElementById('gate').style.opacity = '0';
-            setTimeout(() => document.getElementById('gate').style.display = 'none', 1000);
+            document.getElementById('status').innerText = "CONNECTING CAMERA...";
             
-            const audio = document.getElementById('song');
-            audio.play().catch(e => console.log("Audio play blocked until interaction"));
-            
-            document.getElementById('status').innerText = "LOADING COSMOS...";
-            
-            // 1. Load Images (Note: a.png must exist in your folder)
+            // Load images with crossOrigin fix
             img1Data = await loadImageData('a.png').catch(() => null);
             img2Data = await loadImageData('https://raw.githubusercontent.com/alwaysvivek/rishubaby/main/abc.JPG').catch(() => null);
             
-            // 2. Setup Three.js
             setupThree();
-            
-            // 3. Start Tracking
-            initTracking();
+            startNativeCamera();
         }
 
-        function loadImageData(url) {
-            return new Promise((resolve, reject) => {
-                const img = new Image();
-                img.crossOrigin = "anonymous";
-                img.src = url;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = 100; canvas.height = 100;
-                    ctx.drawImage(img, 0, 0, 100, 100);
-                    resolve(ctx.getImageData(0, 0, 100, 100).data);
-                };
-                img.onerror = () => {
-                    console.warn("Failed to load image: " + url);
-                    reject();
-                };
-            });
+        // --- 2. NATIVE CAMERA LOGIC ---
+        async function startNativeCamera() {
+            const video = document.getElementById('input_video');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480, facingMode: "user" } 
+                });
+                video.srcObject = stream;
+                
+                const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+                hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+                
+                hands.onResults(onHandResults);
+
+                // Manual Frame Processing Loop
+                async function processFrame() {
+                    if (video.readyState >= 2) {
+                        await hands.send({image: video});
+                    }
+                    requestAnimationFrame(processFrame);
+                }
+                processFrame();
+
+                document.getElementById('status').innerText = "CALIBRATED";
+                document.getElementById('hint').innerText = "Put both hands in view and pull apart!";
+            } catch (err) {
+                document.getElementById('status').innerText = "CAMERA BLOCKED";
+                document.getElementById('hint').innerText = "Please enable camera and refresh.";
+            }
         }
 
+        // --- 3. GESTURE LOGIC ---
+        function onHandResults(results) {
+            const status = document.getElementById('status');
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length === 2) {
+                const h1 = results.multiHandLandmarks[0][9]; // Middle of palm
+                const h2 = results.multiHandLandmarks[1][9];
+                const dist = Math.hypot(h1.x - h2.x, h1.y - h2.y);
+                
+                if (!isExploded && dist > 0.4) {
+                    isExploded = true;
+                    updateTargets('love');
+                    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+                    status.innerText = "I LOVE YOU";
+                    setTimeout(() => { if(currentMode === 'love') updateTargets('photo1'); }, 3000);
+                } else if (isExploded) {
+                    if (dist < 0.12) {
+                        updateTargets('sphere');
+                        status.innerText = "COSMIC CORE";
+                    } else if (dist > 0.65) {
+                        updateTargets('photo2');
+                        status.innerText = "FOREVER";
+                    }
+                }
+            } else if (!isExploded) {
+                status.innerText = "SHOW BOTH HANDS";
+            }
+        }
+
+        // --- 4. THREE.JS & GEOMETRY ---
         function setupThree() {
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
@@ -101,32 +136,32 @@
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             document.body.appendChild(renderer.domElement);
 
             const geo = new THREE.BufferGeometry();
-            const positions = new Float32Array(PARTICLE_COUNT * 3);
-            const colors = new Float32Array(PARTICLE_COUNT * 3);
+            const pos = new Float32Array(PARTICLE_COUNT * 3);
+            const col = new Float32Array(PARTICLE_COUNT * 3);
 
             for(let i=0; i<PARTICLE_COUNT; i++) {
-                positions[i*3] = (Math.random()-0.5)*200;
-                positions[i*3+1] = (Math.random()-0.5)*200;
-                positions[i*3+2] = (Math.random()-0.5)*200;
-                colors[i*3] = 1; colors[i*3+1] = 1; colors[i*3+2] = 1;
+                pos[i*3] = (Math.random()-0.5)*100;
+                pos[i*3+1] = (Math.random()-0.5)*100;
+                pos[i*3+2] = (Math.random()-0.5)*100;
+                col[i*3] = 1; col[i*3+1] = 1; col[i*3+2] = 1;
             }
 
-            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
             
-            const mat = new THREE.PointsMaterial({ size: 0.25, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending });
+            const mat = new THREE.PointsMaterial({ size: 0.28, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending });
             particles = new THREE.Points(geo, mat);
             scene.add(particles);
 
             const starGeo = new THREE.BufferGeometry();
-            const starPos = new Float32Array(2000 * 3);
-            for(let i=0; i<6000; i++) starPos[i] = (Math.random()-0.5) * 800;
+            const starPos = new Float32Array(1500 * 3);
+            for(let i=0; i<4500; i++) starPos[i] = (Math.random()-0.5) * 600;
             starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-            starField = new THREE.Points(starGeo, new THREE.PointsMaterial({color: 0x444444, size: 0.1}));
+            starField = new THREE.Points(starGeo, new THREE.PointsMaterial({color: 0x666666, size: 0.1}));
             scene.add(starField);
 
             updateTargets('sphere');
@@ -141,20 +176,20 @@
                 if (mode === 'sphere') {
                     const phi = Math.acos(-1 + (2 * i) / PARTICLE_COUNT);
                     const theta = Math.sqrt(PARTICLE_COUNT * Math.PI) * phi;
-                    x = 15 * Math.cos(theta) * Math.sin(phi);
-                    y = 15 * Math.sin(theta) * Math.sin(phi);
-                    z = 15 * Math.cos(phi);
-                    r=0.8; g=0.9; b=1;
+                    x = 16 * Math.cos(theta) * Math.sin(phi);
+                    y = 16 * Math.sin(theta) * Math.sin(phi);
+                    z = 16 * Math.cos(phi);
+                    r=0.6; g=0.8; b=1;
                 } 
                 else if (mode === 'love') {
                     const t = Math.random() * Math.PI * 2;
                     x = 16 * Math.pow(Math.sin(t), 3);
                     y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
                     z = (Math.random() - 0.5) * 5;
-                    r=1; g=0.1; b=0.4;
-                    x *= 0.7; y *= 0.7; // Scale to fit
+                    r=1; g=0.2; b=0.4;
+                    x *= 0.8; y *= 0.8;
                 }
-                else if (mode === 'photo1' || mode === 'photo2') {
+                else {
                     const data = mode === 'photo1' ? img1Data : img2Data;
                     if (data) {
                         x = (i % 100) - 50;
@@ -162,68 +197,30 @@
                         z = 0;
                         r = data[i*4]/255; g = data[i*4+1]/255; b = data[i*4+2]/255;
                     } else {
-                        // Fallback if image load failed
-                        x = (Math.random()-0.5)*40; y = (Math.random()-0.5)*40; z = 0;
+                        x = (Math.random()-0.5)*50; y = (Math.random()-0.5)*50; z = 0;
                         r=1; g=1; b=1;
                     }
                 }
-
                 posTarget[i*3] = x * 0.6;
                 posTarget[i*3+1] = y * 0.6;
                 posTarget[i*3+2] = z * 0.6;
-                colorTarget[i*3] = r;
-                colorTarget[i*3+1] = g;
-                colorTarget[i*3+2] = b;
+                colorTarget[i*3] = r; colorTarget[i*3+1] = g; colorTarget[i*3+2] = b;
             }
         }
 
-        function initTracking() {
-            const videoElement = document.getElementById('input_video');
-            const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-            
-            hands.setOptions({
-                maxNumHands: 2,
-                modelComplexity: 1,
-                minDetectionConfidence: 0.5,
-                minTrackingConfidence: 0.5
-            });
-
-            hands.onResults(results => {
-                const status = document.getElementById('status');
-                if (results.multiHandLandmarks && results.multiHandLandmarks.length === 2) {
-                    const h1 = results.multiHandLandmarks[0][9];
-                    const h2 = results.multiHandLandmarks[1][9];
-                    const dist = Math.hypot(h1.x - h2.x, h1.y - h2.y);
-                    
-                    // Interaction triggers
-                    if (!isExploded && dist > 0.4) {
-                        isExploded = true;
-                        updateTargets('love');
-                        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-                        status.innerText = "I LOVE YOU";
-                        setTimeout(() => { if(currentMode === 'love') updateTargets('photo1'); }, 3000);
-                    } else if (isExploded) {
-                        if (dist < 0.1) {
-                            updateTargets('sphere');
-                            status.innerText = "COSMIC CORE";
-                        } else if (dist > 0.6) {
-                            updateTargets('photo2');
-                            status.innerText = "FOREVER";
-                        }
-                    }
-                } else {
-                    status.innerText = "SHOW BOTH HANDS";
-                }
-            });
-
-            const cameraPipe = new Camera(videoElement, {
-                onFrame: async () => { await hands.send({image: videoElement}); },
-                width: 640, height: 480
-            });
-            
-            cameraPipe.start().then(() => {
-                document.getElementById('status').innerText = "CONNECTED";
-                document.getElementById('hint').innerText = "Bring hands together, then pull apart!";
+        function loadImageData(url) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.src = url;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = 100; canvas.height = 100;
+                    ctx.drawImage(img, 0, 0, 100, 100);
+                    resolve(ctx.getImageData(0, 0, 100, 100).data);
+                };
+                img.onerror = reject;
             });
         }
 
@@ -233,16 +230,14 @@
             const col = particles.geometry.attributes.color;
 
             for(let i=0; i<PARTICLE_COUNT*3; i++) {
-                pos.array[i] += (posTarget[i] - pos.array[i]) * 0.08;
-                col.array[i] += (colorTarget[i] - col.array[i]) * 0.08;
+                pos.array[i] += (posTarget[i] - pos.array[i]) * 0.1;
+                col.array[i] += (colorTarget[i] - col.array[i]) * 0.1;
             }
             
             pos.needsUpdate = true;
             col.needsUpdate = true;
-            
+            particles.rotation.y += 0.003;
             starField.rotation.y += 0.0005;
-            particles.rotation.y += 0.002;
-            
             renderer.render(scene, camera);
         }
 
