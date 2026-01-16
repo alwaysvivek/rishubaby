@@ -16,32 +16,29 @@
         .btn:hover { transform: scale(1.1); box-shadow: 0 0 30px rgba(255,0,119,0.6); }
         
         #ui { position: absolute; top: 20px; left: 20px; color: white; z-index: 10; pointer-events: none; }
-        #status { font-weight: bold; font-size: 1.2rem; color: #ff0077; text-transform: uppercase; }
-        #progress-bar { width: 200px; height: 4px; background: rgba(255,255,255,0.2); margin-top: 10px; border-radius: 2px; overflow: hidden; }
-        #progress-fill { width: 0%; height: 100%; background: #00ffcc; transition: width 0.1s; }
+        #status { font-weight: bold; font-size: 1.2rem; color: #ff0077; text-transform: uppercase; letter-spacing: 2px; }
+        #progress-bar { width: 200px; height: 6px; background: rgba(255,255,255,0.1); margin-top: 10px; border-radius: 3px; overflow: hidden; }
+        #progress-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #ff0077, #00ffcc); transition: width 0.2s; }
         
-        #video-container { position: absolute; bottom: 20px; right: 20px; width: 150px; height: 110px; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; overflow: hidden; transform: scaleX(-1); }
+        #video-container { position: absolute; bottom: 20px; right: 20px; width: 140px; height: 100px; border: 2px solid rgba(255,255,255,0.2); border-radius: 12px; overflow: hidden; transform: scaleX(-1); }
         video { width: 100%; height: 100%; object-fit: cover; }
 
-        #hint {
-            position: fixed; bottom: 15%; left: 50%; transform: translateX(-50%);
-            color: white; text-align: center; z-index: 5; letter-spacing: 1px; font-size: 14px;
-        }
+        #hint { position: fixed; bottom: 10%; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.7); text-align: center; z-index: 5; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; }
     </style>
 </head>
 <body>
 
     <div id="gate">
-        <h2 style="margin-bottom: 30px; letter-spacing: 5px;">COSMIC MEMORY</h2>
-        <button class="btn" onclick="initExperience()">Begin Experience 🎁</button>
+        <h2 style="margin-bottom: 30px; letter-spacing: 8px; font-weight: 300;">COSMIC MEMORY</h2>
+        <button class="btn" onclick="initExperience()">Open the Rift 🎁</button>
     </div>
 
     <div id="ui">
-        <div id="status">INITIALIZING...</div>
+        <div id="status">WAITING...</div>
         <div id="progress-bar"><div id="progress-fill"></div></div>
     </div>
 
-    <div id="hint">Reach out toward the center to unlock</div>
+    <div id="hint">Raise your palm to the stars</div>
 
     <div id="video-container"><video id="input_video"></video></div>
     <audio id="song" src="1.mp3" loop></audio>
@@ -49,19 +46,21 @@
     <script>
         let scene, camera, renderer, particleSystem, stars;
         let isRevealed = false, unlockPower = 0;
-        let handPos = new THREE.Vector3(0, 0, 0);
+        let handPos = new THREE.Vector3(999, 999, 0);
+        let velocities; 
         const PARTICLE_COUNT = 9000;
 
         const shapes = {
-            horizontalEgg: (i) => {
-                const t = Math.random() * Math.PI * 2;
-                const u = Math.random() * Math.PI;
+            // A clean, spherical cosmic egg
+            sphere: (i) => {
+                const phi = Math.acos(-1 + (2 * i) / PARTICLE_COUNT);
+                const theta = Math.sqrt(PARTICLE_COUNT * Math.PI) * phi;
                 const r = 12;
-                // Wide horizontal stretch
-                const x = r * Math.sin(u) * Math.cos(t) * 2.2; 
-                const y = r * Math.sin(u) * Math.sin(t) * 0.8;
-                const z = r * Math.cos(u) * 0.8;
-                return new THREE.Vector3(x, y, z);
+                return new THREE.Vector3(
+                    r * Math.cos(theta) * Math.sin(phi) * 1.2,
+                    r * Math.sin(theta) * Math.sin(phi),
+                    r * Math.cos(phi)
+                );
             },
             photo: (i) => {
                 const x = (i % 100) - 50;
@@ -75,7 +74,7 @@
             document.getElementById('song').play().catch(() => {});
             
             const img = new Image();
-            img.src = 'a.png'; 
+            img.src = 'a.png'; // Ensure this exists!
             img.crossOrigin = "Anonymous";
             img.onload = () => {
                 const canvas = document.createElement('canvas');
@@ -96,21 +95,25 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // Background stars
+            // Velocity buffer for the burst
+            velocities = new Float32Array(PARTICLE_COUNT * 3).fill(0);
+
+            // Stars
             const starGeo = new THREE.BufferGeometry();
             const starPos = new Float32Array(2000 * 3);
             for(let i=0; i<6000; i++) starPos[i] = (Math.random()-0.5) * 800;
             starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-            stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.4 }));
+            stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.3 }));
             scene.add(stars);
 
+            // Particles
             const geo = new THREE.BufferGeometry();
             const pos = new Float32Array(PARTICLE_COUNT * 3);
             const targets = new Float32Array(PARTICLE_COUNT * 3);
             const colors = new Float32Array(PARTICLE_COUNT * 3);
 
             for(let i=0; i<PARTICLE_COUNT; i++) {
-                const p = shapes.horizontalEgg(i);
+                const p = shapes.sphere(i);
                 pos[i*3] = p.x; pos[i*3+1] = p.y; pos[i*3+2] = p.z;
                 targets[i*3] = p.x; targets[i*3+1] = p.y; targets[i*3+2] = p.z;
                 colors[i*3] = 1; colors[i*3+1] = 1; colors[i*3+2] = 1; 
@@ -120,7 +123,7 @@
             geo.setAttribute('target', new THREE.BufferAttribute(targets, 3));
             geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-            particleSystem = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.22, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending }));
+            particleSystem = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.25, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending }));
             scene.add(particleSystem);
             particleSystem.userData.imgColors = imgData;
             animate();
@@ -128,7 +131,7 @@
 
         function initTracking() {
             const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-            hands.setOptions({maxNumHands: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
+            hands.setOptions({maxNumHands: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6});
 
             hands.onResults(results => {
                 const status = document.getElementById('status');
@@ -136,21 +139,21 @@
 
                 if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                     const h = results.multiHandLandmarks[0];
-                    // Map hand position to 3D space
-                    handPos.x = (h[9].x - 0.5) * -50;
-                    handPos.y = (h[9].y - 0.5) * -40;
+                    // Map hand palm center
+                    handPos.x = (h[9].x - 0.5) * -65;
+                    handPos.y = (h[9].y - 0.5) * -45;
 
                     if (!isRevealed) {
                         status.innerText = "ENERGY DETECTED";
-                        unlockPower += 0.01; // Increase power while hand is visible
+                        unlockPower += 0.007; // Speed of breaking
                         fill.style.width = (unlockPower * 100) + "%";
-                        
                         if (unlockPower >= 1.0) reveal();
                     } else {
                         status.innerText = "HAPPY ANNIVERSARY ✨";
                     }
                 } else {
-                    status.innerText = "SEARCHING FOR HAND...";
+                    status.innerText = "SEARCHING...";
+                    handPos.set(999, 999, 0);
                 }
             });
 
@@ -162,10 +165,19 @@
         }
 
         function reveal() {
+            if(isRevealed) return;
             isRevealed = true;
             document.getElementById('hint').style.display = 'none';
             document.getElementById('progress-bar').style.display = 'none';
             
+            // 1. Give every particle an outward explosion velocity
+            for(let i=0; i<PARTICLE_COUNT; i++) {
+                velocities[i*3] = (Math.random() - 0.5) * 2.5;
+                velocities[i*3+1] = (Math.random() - 0.5) * 2.5;
+                velocities[i*3+2] = (Math.random() - 0.5) * 2.5;
+            }
+
+            // 2. Set Colors from Photo
             const colorAttr = particleSystem.geometry.attributes.color;
             const imgData = particleSystem.userData.imgColors;
             for(let i=0; i<PARTICLE_COUNT; i++) {
@@ -175,6 +187,7 @@
             }
             colorAttr.needsUpdate = true;
 
+            // 3. Set Targets to Photo
             const tAttr = particleSystem.geometry.attributes.target;
             for(let i=0; i<PARTICLE_COUNT; i++) {
                 const p = shapes.photo(i);
@@ -192,28 +205,39 @@
             for(let i=0; i<PARTICLE_COUNT; i++) {
                 const ix = i*3, iy = i*3+1, iz = i*3+2;
                 
-                // Return to target shape (egg or photo)
-                const speed = isRevealed ? 0.08 : 0.05;
-                pos.array[ix] += (target.array[ix] - pos.array[ix]) * speed;
-                pos.array[iy] += (target.array[iy] - pos.array[iy]) * speed;
-                pos.array[iz] += (target.array[iz] - pos.array[iz]) * speed;
+                // Burst Logic (if revealed)
+                if(isRevealed) {
+                    pos.array[ix] += velocities[ix];
+                    pos.array[iy] += velocities[iy];
+                    pos.array[iz] += velocities[iz];
+                    // Dampen velocities so they stop flying away
+                    velocities[ix] *= 0.85;
+                    velocities[iy] *= 0.85;
+                    velocities[iz] *= 0.85;
+                }
 
-                // Add some cosmic "sway"
+                // Return to target shape (spheres then photo)
+                const lerpSpeed = isRevealed ? 0.06 : 0.03;
+                pos.array[ix] += (target.array[ix] - pos.array[ix]) * lerpSpeed;
+                pos.array[iy] += (target.array[iy] - pos.array[iy]) * lerpSpeed;
+                pos.array[iz] += (target.array[iz] - pos.array[iz]) * lerpSpeed;
+
+                // Cosmic twinkle/sway
                 pos.array[ix] += Math.sin(time + i) * 0.01;
                 pos.array[iy] += Math.cos(time + i) * 0.01;
 
-                // If hand is near, create a slight "repel" effect
+                // Hand Repel (Interactive Energy)
                 let dx = pos.array[ix] - handPos.x;
                 let dy = pos.array[iy] - handPos.y;
-                let dist = Math.sqrt(dx*dx + dy*dy);
-                if(dist < 8) {
-                    pos.array[ix] += dx * 0.05;
-                    pos.array[iy] += dy * 0.05;
+                let distSq = dx*dx + dy*dy;
+                if(distSq < 64) {
+                    let force = (64 - distSq) * 0.003;
+                    pos.array[ix] += dx * force;
+                    pos.array[iy] += dy * force;
                 }
             }
             pos.needsUpdate = true;
-            
-            stars.rotation.y += 0.001;
+            stars.rotation.y += 0.0005;
             renderer.render(scene, camera);
         }
 
