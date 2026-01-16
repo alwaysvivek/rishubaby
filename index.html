@@ -14,55 +14,61 @@
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
         #gate { position: fixed; inset: 0; background: #000; z-index: 200; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center; }
         .btn { background: white; color: black; padding: 20px 40px; border-radius: 50px; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 2px; transition: 0.3s; }
+        .btn:active { transform: scale(0.95); }
         
         #ui { position: absolute; top: 30px; width: 100%; text-align: center; color: white; z-index: 10; pointer-events: none; }
-        #status { font-weight: 300; font-size: 0.8rem; letter-spacing: 4px; text-transform: uppercase; opacity: 0.7; }
+        #status { font-weight: 300; font-size: 0.9rem; letter-spacing: 4px; text-transform: uppercase; color: #ff0077; }
         
-        #video-container { position: absolute; bottom: 20px; left: 20px; width: 120px; height: 90px; border-radius: 10px; overflow: hidden; opacity: 0.3; transform: scaleX(-1); border: 1px solid white; }
+        #video-container { position: absolute; bottom: 20px; left: 20px; width: 120px; height: 90px; border-radius: 10px; overflow: hidden; opacity: 0.5; transform: scaleX(-1); border: 1px solid rgba(255,255,255,0.3); background: #111; }
         video { width: 100%; height: 100%; object-fit: cover; }
 
-        #hint { position: fixed; bottom: 10%; width: 100%; text-align: center; color: #fff; z-index: 5; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+        #hint { position: fixed; bottom: 10%; width: 100%; text-align: center; color: rgba(255,255,255,0.6); z-index: 5; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
     </style>
 </head>
 <body>
 
     <div id="gate">
         <h1 style="letter-spacing: 15px; font-weight: 100; margin-bottom: 50px;">ETERNITY</h1>
-        <button class="btn" onclick="initExperience()">Open the Rift 🎁</button>
+        <button class="btn" id="startBtn">Open the Rift 🎁</button>
     </div>
 
     <div id="ui">
-        <div id="status">WAITING FOR YOUR TOUCH...</div>
+        <div id="status">INITIATING...</div>
     </div>
 
-    <div id="hint">Bring both hands together to start</div>
+    <div id="hint">Waiting for camera...</div>
 
-    <div id="video-container"><video id="input_video"></video></div>
+    <div id="video-container"><video id="input_video" playsinline></video></div>
     <audio id="song" src="1.mp3" loop></audio>
 
     <script>
         let scene, camera, renderer, particles, starField;
-        let handL = new THREE.Vector3(), handR = new THREE.Vector3();
-        let currentMode = 'sphere'; // sphere, text, photo1, photo2
-        let transitionProgress = 0;
+        let currentMode = 'sphere'; 
         let isExploded = false;
         const PARTICLE_COUNT = 10000;
         
-        // Target buffers
-        let posTarget, colorTarget;
-        const img1Data = [], img2Data = [];
+        let posTarget = new Float32Array(PARTICLE_COUNT * 3);
+        let colorTarget = new Float32Array(PARTICLE_COUNT * 3);
+        let img1Data, img2Data;
+
+        // --- Interaction Logic ---
+        document.getElementById('startBtn').addEventListener('click', () => {
+            initExperience();
+        });
 
         async function initExperience() {
             document.getElementById('gate').style.display = 'none';
-            document.getElementById('song').play().catch(() => {});
+            document.getElementById('song').play().catch(e => console.log("Audio play blocked"));
+            document.getElementById('status').innerText = "LOADING COSMOS...";
             
-            // Preload Photos
-            const [data1, data2] = await Promise.all([
-                loadImageData('a.png'),
-                loadImageData('https://raw.githubusercontent.com/alwaysvivek/rishubaby/main/abc.JPG')
-            ]);
+            // 1. Preload Image Data
+            img1Data = await loadImageData('a.png');
+            img2Data = await loadImageData('https://raw.githubusercontent.com/alwaysvivek/rishubaby/main/abc.JPG');
             
-            setupThree(data1, data2);
+            // 2. Start Three.js
+            setupThree();
+            
+            // 3. Start Camera and Tracking
             initTracking();
         }
 
@@ -81,53 +87,46 @@
             });
         }
 
-        function setupThree(d1, d2) {
+        function setupThree() {
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
             camera.position.z = 50;
 
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
             const geo = new THREE.BufferGeometry();
             const positions = new Float32Array(PARTICLE_COUNT * 3);
             const colors = new Float32Array(PARTICLE_COUNT * 3);
-            posTarget = new Float32Array(PARTICLE_COUNT * 3);
-            colorTarget = new Float32Array(PARTICLE_COUNT * 3);
 
             for(let i=0; i<PARTICLE_COUNT; i++) {
-                // Initial State: Tiny dense core
-                positions[i*3] = (Math.random()-0.5)*2;
-                positions[i*3+1] = (Math.random()-0.5)*2;
-                positions[i*3+2] = (Math.random()-0.5)*2;
-                
+                positions[i*3] = (Math.random()-0.5)*200;
+                positions[i*3+1] = (Math.random()-0.5)*200;
+                positions[i*3+2] = (Math.random()-0.5)*200;
                 colors[i*3] = 1; colors[i*3+1] = 1; colors[i*3+2] = 1;
             }
 
             geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
             
-            const mat = new THREE.PointsMaterial({ size: 0.25, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending });
+            const mat = new THREE.PointsMaterial({ size: 0.3, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending });
             particles = new THREE.Points(geo, mat);
             scene.add(particles);
 
-            // Stars
             const starGeo = new THREE.BufferGeometry();
-            const starPos = new Float32Array(3000 * 3);
-            for(let i=0; i<9000; i++) starPos[i] = (Math.random()-0.5) * 600;
+            const starPos = new Float32Array(2000 * 3);
+            for(let i=0; i<6000; i++) starPos[i] = (Math.random()-0.5) * 800;
             starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-            starField = new THREE.Points(starGeo, new THREE.PointsMaterial({color: 0x444444, size: 0.2}));
+            starField = new THREE.Points(starGeo, new THREE.PointsMaterial({color: 0xffffff, size: 0.2}));
             scene.add(starField);
 
-            particles.userData = { d1, d2 };
+            updateTargets('sphere');
             animate();
         }
 
         function updateTargets(mode) {
-            const d1 = particles.userData.d1;
-            const d2 = particles.userData.d2;
-            
+            currentMode = mode;
             for(let i=0; i<PARTICLE_COUNT; i++) {
                 let x, y, z, r, g, b;
                 
@@ -139,17 +138,24 @@
                     z = 12 * Math.cos(phi);
                     r=1; g=1; b=1;
                 } 
+                else if (mode === 'love') {
+                    // Simple "I <3 U" layout
+                    x = (Math.random() - 0.5) * 40;
+                    y = Math.sin(x * 0.5) * 10;
+                    z = (Math.random() - 0.5) * 5;
+                    r=1; g=0.2; b=0.5;
+                }
                 else if (mode === 'photo1' || mode === 'photo2') {
-                    const data = mode === 'photo1' ? d1 : d2;
+                    const data = mode === 'photo1' ? img1Data : img2Data;
                     x = (i % 100) - 50;
                     y = 50 - Math.floor(i / 100);
                     z = 0;
                     r = data[i*4]/255; g = data[i*4+1]/255; b = data[i*4+2]/255;
                 }
 
-                posTarget[i*3] = x * 0.5;
-                posTarget[i*3+1] = y * 0.5;
-                posTarget[i*3+2] = z * 0.5;
+                posTarget[i*3] = x * 0.6;
+                posTarget[i*3+1] = y * 0.6;
+                posTarget[i*3+2] = z * 0.6;
                 colorTarget[i*3] = r;
                 colorTarget[i*3+1] = g;
                 colorTarget[i*3+2] = b;
@@ -157,51 +163,66 @@
         }
 
         function initTracking() {
+            const videoElement = document.getElementById('input_video');
             const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-            hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5 });
+            
+            hands.setOptions({
+                maxNumHands: 2,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.6,
+                minTrackingConfidence: 0.6
+            });
 
             hands.onResults(results => {
                 const status = document.getElementById('status');
                 const hint = document.getElementById('hint');
 
                 if (results.multiHandLandmarks && results.multiHandLandmarks.length === 2) {
-                    const h1 = results.multiHandLandmarks[0][9];
+                    const h1 = results.multiHandLandmarks[0][9]; // Middle palm
                     const h2 = results.multiHandLandmarks[1][9];
                     
                     const dist = Math.hypot(h1.x - h2.x, h1.y - h2.y);
+                    const avgZ = (h1.z + h2.z) / 2;
                     
-                    // Zoom logic based on hand depth (average z)
-                    const depth = (h1.z + h2.z) / 2;
-                    camera.position.z = 30 + (depth * 100);
+                    // Zoom logic: Hand depth controls camera Z
+                    camera.position.z = 40 + (avgZ * 80);
 
-                    if (!isExploded && dist > 0.4) {
+                    if (!isExploded && dist > 0.45) {
                         isExploded = true;
-                        currentMode = 'photo1';
-                        updateTargets('photo1');
+                        updateTargets('love');
                         confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-                        status.innerText = "YOU UNLOCKED THE COSMOS";
-                        hint.innerText = "Clap to compress | Move hands to zoom";
+                        status.innerText = "I LOVE YOU";
+                        setTimeout(() => updateTargets('photo1'), 2000);
                     } 
-                    else if (isExploded && dist < 0.1) {
-                        // Clap/Compress effect
-                        currentMode = 'sphere';
-                        updateTargets('sphere');
-                        status.innerText = "COSMIC COMPRESSION";
+                    else if (isExploded) {
+                        if (dist < 0.12) { // Clap
+                            updateTargets('sphere');
+                            status.innerText = "COSMIC CORE";
+                        } else if (dist > 0.7) { // Wide stretch
+                            updateTargets('photo2');
+                            status.innerText = "OUR MEMORIES";
+                        } else if (dist > 0.3 && dist < 0.6 && currentMode === 'sphere') {
+                             updateTargets('photo1');
+                             status.innerText = "DEVELOPING...";
+                        }
                     }
-                    else if (isExploded && dist > 0.6) {
-                        // Wide stretch triggers second photo
-                        currentMode = 'photo2';
-                        updateTargets('photo2');
-                        status.innerText = "BEYOND THE INFINITE";
-                    }
+                } else {
+                    document.getElementById('status').innerText = "SHOW BOTH HANDS";
                 }
             });
 
-            const cameraPipe = new Camera(document.getElementById('input_video'), {
-                onFrame: async () => { await hands.send({image: document.getElementById('input_video')}); },
-                width: 480, height: 360
+            const cameraPipe = new Camera(videoElement, {
+                onFrame: async () => { await hands.send({image: videoElement}); },
+                width: 640, height: 480
             });
-            cameraPipe.start();
+            
+            cameraPipe.start().then(() => {
+                document.getElementById('status').innerText = "CONNECTED";
+                document.getElementById('hint').innerText = "Bring hands together, then pull apart!";
+            }).catch(err => {
+                document.getElementById('status').innerText = "CAMERA ERROR";
+                console.error(err);
+            });
         }
 
         function animate() {
@@ -210,15 +231,16 @@
             const col = particles.geometry.attributes.color;
 
             for(let i=0; i<PARTICLE_COUNT*3; i++) {
-                pos.array[i] += (posTarget[i] - pos.array[i]) * 0.08;
-                col.array[i] += (colorTarget[i] - col.array[i]) * 0.08;
+                // Smooth interpolation to targets
+                pos.array[i] += (posTarget[i] - pos.array[i]) * 0.07;
+                col.array[i] += (colorTarget[i] - col.array[i]) * 0.07;
             }
             
             pos.needsUpdate = true;
             col.needsUpdate = true;
             
-            starField.rotation.y += 0.001;
-            particles.rotation.y += 0.002;
+            starField.rotation.y += 0.0005;
+            particles.rotation.y += 0.001;
             
             renderer.render(scene, camera);
         }
