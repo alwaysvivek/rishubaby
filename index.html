@@ -3,89 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Screen Crack Surprise</title>
+    <title>Real Crack Surprise</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial', sans-serif; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         
-        /* Video mirrored to feel natural */
         #video { 
             position: absolute; width: 100vw; height: 100vh; 
             object-fit: cover; z-index: 1; transform: scaleX(-1); 
         }
 
-        /* The Overlay for the crack and text */
-        #overlay {
+        /* The canvas where the "glass" breaks */
+        #crackCanvas {
             position: absolute; top: 0; left: 0;
             width: 100vw; height: 100vh;
             z-index: 10; pointer-events: none;
         }
 
+        /* Screen glitch effect when hit */
+        .glitch {
+            animation: shake 0.2s lightspeed;
+            filter: contrast(150%) brightness(120%) hue-rotate(90deg);
+        }
+
+        @keyframes shake {
+            0% { transform: translate(0,0); }
+            25% { transform: translate(5px, -5px); }
+            50% { transform: translate(-5px, 5px); }
+            100% { transform: translate(0,0); }
+        }
+
         #message {
             position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            color: white; font-size: 5rem; font-weight: bold;
-            text-shadow: 0 0 20px rgba(255, 0, 100, 0.8);
-            opacity: 0; transition: opacity 1.5s ease-in;
-            z-index: 11;
+            color: white; font-size: 4rem; font-weight: 900;
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.8), 0 0 40px rgba(255, 0, 100, 0.8);
+            opacity: 0; transition: opacity 2s ease-in;
+            z-index: 100; text-transform: uppercase;
+            letter-spacing: 10px;
         }
 
         #ui {
-            position: absolute; top: 20px; left: 20px;
-            color: white; background: rgba(0,0,0,0.6);
-            padding: 10px; border-radius: 8px; z-index: 100;
-        }
-
-        .crack-svg {
-            position: absolute; top: 0; left: 0;
-            width: 100%; height: 100%;
-            filter: drop-shadow(0px 0px 2px rgba(255,255,255,0.5));
+            position: absolute; bottom: 40px; left: 50%;
+            transform: translateX(-50%);
+            color: white; background: rgba(0,0,0,0.7);
+            padding: 15px 30px; border-radius: 50px; z-index: 100;
+            border: 1px solid rgba(255,255,255,0.2);
+            backdrop-filter: blur(5px);
         }
     </style>
 </head>
 <body>
     <video id="video" autoplay playsinline></video>
-    <div id="ui">Get ready... Move your head close to the screen!</div>
-    <div id="message">i love u</div>
-    
-    <div id="overlay">
-        <svg id="crack-container" class="crack-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-            </svg>
-    </div>
+    <canvas id="crackCanvas"></canvas>
+    <div id="ui">Move closer to the glass...</div>
+    <div id="message">I LOVE U</div>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
     <script type="module">
         const video = document.getElementById('video');
+        const canvas = document.getElementById('crackCanvas');
+        const ctx = canvas.getContext('2d');
         const ui = document.getElementById('ui');
         const message = document.getElementById('message');
-        const crackContainer = document.getElementById('crack-container');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
         let isCracked = false;
 
-        // --- 1. Face Tracking Setup ---
         const faceMesh = new FaceMesh({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
         });
 
-        faceMesh.setOptions({
-            maxNumFaces: 1,
-            refineLandmarks: true,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
-        });
+        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5 });
 
         faceMesh.onResults((results) => {
             if (results.multiFaceLandmarks && results.multiFaceLandmarks[0] && !isCracked) {
-                const nose = results.multiFaceLandmarks[0][1]; // Nose tip
-                
-                // MediaPipe Z is depth. Smaller values = closer to camera.
-                // We detect a "headbutt" if Z drops below a threshold (e.g., -0.1)
-                if (nose.z < -0.12) { 
-                    triggerCrack(nose.x * 100, nose.y * 100);
+                const nose = results.multiFaceLandmarks[0][1];
+                // Trigger when head is very close (Z-axis threshold)
+                if (nose.z < -0.15) { 
+                    triggerRealisticCrack(nose.x * canvas.width, nose.y * canvas.height);
                 }
             }
         });
 
-        // --- 2. Camera Start ---
         navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
             video.srcObject = stream;
             const predict = async () => {
@@ -95,37 +96,68 @@
             predict();
         });
 
-        // --- 3. Crack Animation & Surprise ---
-        function triggerCrack(x, y) {
+        function triggerRealisticCrack(centerX, centerY) {
             isCracked = true;
             ui.style.display = 'none';
+            document.body.classList.add('glitch');
+            setTimeout(() => document.body.classList.remove('glitch'), 300);
 
-            // Create procedural crack paths
-            for (let i = 0; i < 8; i++) {
-                const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
-                const length = 20 + Math.random() * 30;
-                const angle = (i / 8) * Math.PI * 2 + (Math.random() * 0.5);
+            // 1. Draw the Impact Point (Black "dead" pixels)
+            ctx.fillStyle = "rgba(0, 0, 0, 0.95)";
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 15, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 2. Draw Spider-web cracks
+            drawSpiderCracks(centerX, centerY);
+
+            // 3. Draw LCD Rainbow Bleed (Vertical/Horizontal lines)
+            drawLCDBleed(centerX, centerY);
+
+            message.style.opacity = "1";
+        }
+
+        function drawSpiderCracks(x, y) {
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+            ctx.lineWidth = 0.5;
+
+            // Multiple radial shards
+            for (let i = 0; i < 25; i++) {
+                let currX = x;
+                let currY = y;
+                let angle = Math.random() * Math.PI * 2;
+                let segments = 5 + Math.random() * 10;
                 
-                const xEnd = x + Math.cos(angle) * length;
-                const yEnd = y + Math.sin(angle) * length;
-
-                // Jagged line logic
-                const midX = x + Math.cos(angle) * (length/2) + (Math.random() - 0.5) * 5;
-                const midY = y + Math.sin(angle) * (length/2) + (Math.random() - 0.5) * 5;
-
-                const d = `M ${x} ${y} L ${midX} ${midY} L ${xEnd} ${yEnd}`;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
                 
-                line.setAttribute("d", d);
-                line.setAttribute("stroke", "rgba(255,255,255,0.8)");
-                line.setAttribute("stroke-width", "0.5");
-                line.setAttribute("fill", "none");
-                crackContainer.appendChild(line);
+                for (let j = 0; j < segments; j++) {
+                    currX += Math.cos(angle) * (Math.random() * 80);
+                    currY += Math.sin(angle) * (Math.random() * 80);
+                    angle += (Math.random() - 0.5) * 0.5; // Slight deviation
+                    ctx.lineTo(currX, currY);
+                }
+                ctx.stroke();
+            }
+        }
+
+        function drawLCDBleed(x, y) {
+            // Draw a few vertical "dead pixel" stripes
+            const colors = ['#ff00ff', '#00ffff', '#ffffff', '#000000'];
+            for (let i = 0; i < 12; i++) {
+                const stripeX = x + (Math.random() - 0.5) * 200;
+                ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
+                ctx.globalAlpha = 0.6;
+                ctx.fillRect(stripeX, 0, Math.random() * 3, canvas.height);
             }
 
-            // Show Message
-            setTimeout(() => {
-                message.style.opacity = "1";
-            }, 300);
+            // Darker "ink leak" around the hit
+            const gradient = ctx.createRadialGradient(x, y, 5, x, y, 60);
+            gradient.addColorStop(0, "black");
+            gradient.addColorStop(1, "transparent");
+            ctx.fillStyle = gradient;
+            ctx.globalAlpha = 0.8;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
     </script>
 </body>
