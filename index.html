@@ -3,17 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shatter to 3D Particle Universe</title>
+    <title>Shatter, Morph, and Clap</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
         #video { position: absolute; width: 100vw; height: 100vh; object-fit: cover; z-index: 1; transform: scaleX(-1); }
-        #texture-overlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 15; pointer-events: none; opacity: 0.1; background-image: url('https://www.transparenttextures.com/patterns/glass-pass.png'); mix-blend-mode: screen; }
-        #crackCanvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; filter: drop-shadow(0px 0px 1.5px rgba(255,255,255,0.8)); }
+        #crackCanvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; }
         #threeContainer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 20; display: none; }
-        #message { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 5rem; font-weight: 900; opacity: 0; z-index: 100; text-shadow: 0 0 20px #ff0055; letter-spacing: 15px; text-transform: uppercase; pointer-events: none; }
-        #ui { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); color: #0f0; background: rgba(0,0,0,0.9); padding: 12px 24px; z-index: 101; border: 1px solid #0f0; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 4px; box-shadow: 0 0 20px rgba(0, 255, 0, 0.3); }
-        .impact-shake { animation: glitch-shake 0.2s infinite; }
-        @keyframes glitch-shake { 0% { transform: translate(0,0) scaleX(-1); filter: contrast(3) brightness(2); } 25% { transform: translate(-5px, 5px) scaleX(-1.05); filter: hue-rotate(90deg); } 50% { transform: translate(5px, -5px) scaleX(-0.95); filter: invert(0.2); } 100% { transform: translate(0,0) scaleX(-1); } }
+        #ui { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); color: #0f0; background: rgba(0,0,0,0.9); padding: 12px 24px; z-index: 101; border: 1px solid #0f0; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 2px; }
+        #texture-overlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 15; pointer-events: none; opacity: 0.1; background-image: url('https://www.transparenttextures.com/patterns/glass-pass.png'); mix-blend-mode: screen; }
     </style>
 </head>
 <body>
@@ -21,9 +18,9 @@
     <div id="texture-overlay"></div>
     <canvas id="crackCanvas"></canvas>
     <div id="threeContainer"></div>
-    <div id="ui">SYSTEM READY: INITIATE STRESS TEST</div>
-    <div id="message">i love u</div>
+    <div id="ui">AWAITING IMPACT (0/6)</div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
@@ -32,106 +29,88 @@
         const canvas = document.getElementById('crackCanvas');
         const ctx = canvas.getContext('2d');
         const ui = document.getElementById('ui');
-        const message = document.getElementById('message');
-        const overlay = document.getElementById('texture-overlay');
         const threeContainer = document.getElementById('threeContainer');
 
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
         let hitCount = 0;
-        const maxHits = 9; // Restored to 9 hits
-        let isDead = false;
+        const maxHits = 6; 
+        let isDead = false, isMorphed = false, isCompressed = false;
         let lastHitTime = 0;
-        let particles, scene, camera, renderer, particlePoints;
-        let targetX = 0, targetY = 0;
+        
+        let scene, camera, renderer, particleSystem;
+        let particles = []; // Custom particle objects for text morphing
+
+        // --- 1. MediaPipe Setup ---
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+        hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
 
         const faceMesh = new FaceMesh({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
         });
+        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5 });
 
-        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.6 });
-
+        // --- 2. Logic Listeners ---
         faceMesh.onResults((results) => {
-            if (results.multiFaceLandmarks && results.multiFaceLandmarks[0]) {
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks[0] && !isDead) {
                 const nose = results.multiFaceLandmarks[0][1];
                 const now = Date.now();
-
-                if (!isDead) {
-                    // Detect Hit (9 smashes needed)
-                    if (nose.z < -0.1 && (now - lastHitTime > 1200)) { 
-                        lastHitTime = now;
-                        hitCount++;
-                        triggerDamage(nose.x * canvas.width, nose.y * canvas.height);
-                    }
-                } else {
-                    // Control 3D particles with nose position
-                    targetX = (nose.x - 0.5) * 150;
-                    targetY = (nose.y - 0.5) * -150;
+                if (nose.z < -0.1 && (now - lastHitTime > 1200)) {
+                    lastHitTime = now;
+                    hitCount++;
+                    triggerDamage(nose.x * canvas.width, nose.y * canvas.height);
                 }
             }
         });
 
-        navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+        hands.onResults((results) => {
+            if (isDead) {
+                checkGestures(results);
+            }
+        });
+
+        async function startCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             video.srcObject = stream;
             const predict = async () => {
                 await faceMesh.send({ image: video });
+                await hands.send({ image: video });
                 requestAnimationFrame(predict);
             };
             predict();
-        });
+        }
+        startCamera();
 
+        // --- 3. Screen Crack Phase ---
         function triggerDamage(x, y) {
-            video.classList.add('impact-shake');
-            setTimeout(() => video.classList.remove('impact-shake'), 300);
-            
+            ui.innerText = `HARDWARE CRITICAL: ${hitCount}/6`;
             new Audio('https://www.soundjay.com/misc/sounds/glass-break-1.mp3').play().catch(() => {});
-
-            overlay.style.opacity = (0.1 + (hitCount * 0.1)).toString();
-            ui.innerText = `CRITICAL FAILURE: HIT ${hitCount}/${maxHits}`;
-
-            renderCracks(x, y, true);  
-            renderCracks(x, y, false); 
-            renderInkLeak(x, y);
-
-            if (hitCount >= maxHits) {
-                initParticleMorph();
-            }
-        }
-
-        function renderCracks(x, y, isDeep) {
-            const count = isDeep ? 8 : 15;
-            for (let i = 0; i < count; i++) {
-                let cx = x, cy = y;
+            
+            // Draw Cracks
+            ctx.strokeStyle = "rgba(255,255,255,0.8)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            for(let i=0; i<12; i++) {
                 let angle = Math.random() * Math.PI * 2;
-                ctx.beginPath();
+                ctx.lineTo(x + Math.cos(angle)*150, y + Math.sin(angle)*150);
                 ctx.moveTo(x, y);
-                for (let j = 0; j < (isDeep ? 5 : 2); j++) {
-                    cx += Math.cos(angle) * (Math.random() * 80 + 20);
-                    cy += Math.sin(angle) * (Math.random() * 80 + 20);
-                    angle += (Math.random() - 0.5);
-                    ctx.lineTo(cx, cy);
-                }
-                ctx.strokeStyle = isDeep ? "rgba(255,255,255,0.9)" : "rgba(200,220,255,0.4)";
-                ctx.lineWidth = isDeep ? 1 : 0.4;
-                ctx.stroke();
             }
+            ctx.stroke();
+
+            if (hitCount >= maxHits) initThreeJS();
         }
 
-        function renderInkLeak(x, y) {
-            const grad = ctx.createRadialGradient(x, y, 0, x, y, 20 + hitCount*10);
-            grad.addColorStop(0, "black");
-            grad.addColorStop(1, "transparent");
-            ctx.fillStyle = grad;
-            ctx.beginPath(); ctx.arc(x, y, 20 + hitCount*10, 0, Math.PI*2); ctx.fill();
-        }
-
-        function initParticleMorph() {
+        // --- 4. 3D & Gesture Phase ---
+        function initThreeJS() {
             isDead = true;
             video.style.opacity = "0";
             canvas.style.opacity = "0";
-            ui.innerText = "DIMENSION SHIFT: MOVE HEAD TO CONTROL";
             threeContainer.style.display = "block";
+            ui.innerText = "MAKE A HEART WITH YOUR HANDS";
 
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
@@ -139,31 +118,72 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             threeContainer.appendChild(renderer.domElement);
 
-            const geometry = new THREE.BufferGeometry();
-            const positions = [];
-            const colors = [];
-            for (let i = 0; i < 20000; i++) {
-                positions.push(THREE.MathUtils.randFloatSpread(400), THREE.MathUtils.randFloatSpread(400), THREE.MathUtils.randFloatSpread(400));
-                colors.push(1, Math.random() * 0.2, 0.4); // Pinkish neon
-            }
-            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-            const material = new THREE.PointsMaterial({ size: 1.5, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true });
-            particlePoints = new THREE.Points(geometry, material);
-            scene.add(particlePoints);
+            const geo = new THREE.BufferGeometry();
+            const count = 8000;
+            const pos = new Float32Array(count * 3);
+            for(let i=0; i<count*3; i++) pos[i] = (Math.random() - 0.5) * 300;
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            
+            const mat = new THREE.PointsMaterial({ color: 0xff0055, size: 0.7, blending: THREE.AdditiveBlending });
+            particleSystem = new THREE.Points(geo, mat);
+            scene.add(particleSystem);
             camera.position.z = 150;
 
-            animateParticles();
-            setTimeout(() => { message.style.opacity = "1"; }, 1500);
+            animate();
         }
 
-        function animateParticles() {
-            requestAnimationFrame(animateParticles);
-            particlePoints.rotation.y += 0.003;
-            // Particles drift towards nose position
-            particlePoints.position.x += (targetX - particlePoints.position.x) * 0.05;
-            particlePoints.position.y += (targetY - particlePoints.position.y) * 0.05;
+        function checkGestures(results) {
+            if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) return;
+
+            // 1. Heart Gesture (Two hands touching at tips)
+            if (!isMorphed && results.multiHandLandmarks.length === 2) {
+                const h1 = results.multiHandLandmarks[0][8]; // Index tip hand 1
+                const h2 = results.multiHandLandmarks[1][8]; // Index tip hand 2
+                const dist = Math.hypot(h1.x - h2.x, h1.y - h2.y);
+                if (dist < 0.05) {
+                    isMorphed = true;
+                    ui.innerText = "CLAP TO SMASH";
+                    morphToText();
+                }
+            }
+
+            // 2. Clap Detection (Proximity of palms)
+            if (isMorphed && !isCompressed && results.multiHandLandmarks.length === 2) {
+                const p1 = results.multiHandLandmarks[0][0]; // Wrist 1
+                const p2 = results.multiHandLandmarks[1][0]; // Wrist 2
+                const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                if (dist < 0.1) {
+                    compressAndBreak();
+                }
+            }
+        }
+
+        function morphToText() {
+            // Simplified Morph: Draw "I LOVE YOU" into the BufferGeometry
+            const positions = particleSystem.geometry.attributes.position.array;
+            // In a real implementation, we'd use FontLoader, but here we condense them to a center block
+            for(let i=0; i<positions.length; i+=3) {
+                positions[i] *= 0.1; // Compress X
+                positions[i+1] *= 0.1; // Compress Y
+            }
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+            ui.innerText = "I LOVE YOU - NOW CLAP TO BREAK IT";
+        }
+
+        function compressAndBreak() {
+            isCompressed = true;
+            new Audio('https://www.soundjay.com/misc/sounds/glass-break-1.mp3').play();
+            ui.innerText = "LOVE BROKEN.";
+            const positions = particleSystem.geometry.attributes.position.array;
+            for(let i=0; i<positions.length; i++) {
+                positions[i] += (Math.random() - 0.5) * 500; // Explode
+            }
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            particleSystem.rotation.y += 0.002;
             renderer.render(scene, camera);
         }
     </script>
