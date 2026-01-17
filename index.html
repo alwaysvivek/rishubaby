@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shatter, Morph, and Clap</title>
+    <title>3D Grid Morph & Proximity Zoom</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }
         #video { position: absolute; width: 100vw; height: 100vh; object-fit: cover; z-index: 1; transform: scaleX(-1); }
         #crackCanvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; }
         #threeContainer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 20; display: none; }
@@ -18,7 +18,7 @@
     <div id="texture-overlay"></div>
     <canvas id="crackCanvas"></canvas>
     <div id="threeContainer"></div>
-    <div id="ui">AWAITING IMPACT (0/6)</div>
+    <div id="ui">AWAITING IMPACT (0/4)</div>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
@@ -31,48 +31,54 @@
         const ui = document.getElementById('ui');
         const threeContainer = document.getElementById('threeContainer');
 
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
         let hitCount = 0;
-        const maxHits = 6; 
-        let isDead = false, isMorphed = false, isCompressed = false;
-        let lastHitTime = 0;
-        
+        const maxHits = 4; // Reduced as requested
+        let isDead = false, isMorphed = false, isExploded = false;
         let scene, camera, renderer, particleSystem;
-        let particles = []; // Custom particle objects for text morphing
+        let positions, targetPositions, currentPositions;
+        
+        // --- 1. Mediapipe Setup ---
+        const hands = new Hands({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+        hands.setOptions({ maxNumHands: 2, minDetectionConfidence: 0.7 });
 
-        // --- 1. MediaPipe Setup ---
-        const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
-        hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+        const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
 
-        const faceMesh = new FaceMesh({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-        });
-        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5 });
-
-        // --- 2. Logic Listeners ---
+        // --- 2. Tracking Logic ---
         faceMesh.onResults((results) => {
-            if (results.multiFaceLandmarks && results.multiFaceLandmarks[0] && !isDead) {
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks[0]) {
                 const nose = results.multiFaceLandmarks[0][1];
-                const now = Date.now();
-                if (nose.z < -0.1 && (now - lastHitTime > 1200)) {
-                    lastHitTime = now;
-                    hitCount++;
-                    triggerDamage(nose.x * canvas.width, nose.y * canvas.height);
+                
+                if (!isDead) {
+                    // Screen Smash Detection
+                    if (nose.z < -0.12) {
+                        hitCount++;
+                        triggerShatter(nose.x * window.innerWidth, nose.y * window.innerHeight);
+                    }
+                } else {
+                    // PROXIMITY ZOOM: Adjust camera Z based on face distance
+                    // Nose Z usually ranges from -0.05 to -0.2. We map this to 50 - 200 distance.
+                    const targetZ = 150 + (nose.z * 600); 
+                    camera.position.z += (targetZ - camera.position.z) * 0.1;
                 }
             }
         });
 
         hands.onResults((results) => {
-            if (isDead) {
-                checkGestures(results);
+            if (isDead && !isMorphed && results.multiHandLandmarks?.length === 2) {
+                const h1 = results.multiHandLandmarks[0][8];
+                const h2 = results.multiHandLandmarks[1][8];
+                if (Math.hypot(h1.x - h2.x, h1.y - h2.y) < 0.05) morphToLove();
+            }
+            // Clap Detection (Wrists proximity)
+            if (isMorphed && !isExploded && results.multiHandLandmarks?.length === 2) {
+                const w1 = results.multiHandLandmarks[0][0];
+                const w2 = results.multiHandLandmarks[1][0];
+                if (Math.hypot(w1.x - w2.x, w1.y - w2.y) < 0.1) explode();
             }
         });
 
-        async function startCamera() {
+        async function init() {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             video.srcObject = stream;
             const predict = async () => {
@@ -82,108 +88,103 @@
             };
             predict();
         }
-        startCamera();
+        init();
 
-        // --- 3. Screen Crack Phase ---
-        function triggerDamage(x, y) {
-            ui.innerText = `HARDWARE CRITICAL: ${hitCount}/6`;
-            new Audio('https://www.soundjay.com/misc/sounds/glass-break-1.mp3').play().catch(() => {});
-            
-            // Draw Cracks
-            ctx.strokeStyle = "rgba(255,255,255,0.8)";
-            ctx.lineWidth = 1;
+        // --- 3. 2D Effects ---
+        function triggerShatter(x, y) {
+            ui.innerText = `HARDWARE FAILURE: ${hitCount}/4`;
+            new Audio('https://www.soundjay.com/misc/sounds/glass-break-1.mp3').play().catch(()=>{});
+            ctx.strokeStyle = "white";
             ctx.beginPath();
-            ctx.moveTo(x, y);
-            for(let i=0; i<12; i++) {
-                let angle = Math.random() * Math.PI * 2;
-                ctx.lineTo(x + Math.cos(angle)*150, y + Math.sin(angle)*150);
-                ctx.moveTo(x, y);
+            ctx.arc(x,y,20,0,Math.PI*2);
+            for(let i=0; i<10; i++){
+                ctx.moveTo(x,y);
+                let a = Math.random()*Math.PI*2;
+                ctx.lineTo(x+Math.cos(a)*200, y+Math.sin(a)*200);
             }
             ctx.stroke();
-
-            if (hitCount >= maxHits) initThreeJS();
+            if (hitCount >= maxHits) start3D();
         }
 
-        // --- 4. 3D & Gesture Phase ---
-        function initThreeJS() {
+        // --- 4. 3D Engine ---
+        function start3D() {
             isDead = true;
-            video.style.opacity = "0";
-            canvas.style.opacity = "0";
-            threeContainer.style.display = "block";
-            ui.innerText = "MAKE A HEART WITH YOUR HANDS";
+            video.style.display = 'none';
+            canvas.style.display = 'none';
+            threeContainer.style.display = 'block';
+            ui.innerText = "FORM A HEART TO REVEAL TRUTH";
 
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 1, 1000);
+            renderer = new THREE.WebGLRenderer();
             renderer.setSize(window.innerWidth, window.innerHeight);
             threeContainer.appendChild(renderer.domElement);
 
+            const count = 10000;
+            currentPositions = new Float32Array(count * 3);
+            targetPositions = new Float32Array(count * 3);
+
+            // INITIAL STATE: 3D CUBE GRID
+            let side = Math.round(Math.pow(count, 1/3));
+            let i = 0;
+            for(let x=0; x<side; x++){
+                for(let y=0; y<side; y++){
+                    for(let z=0; z<side; z++){
+                        if(i >= count*3) break;
+                        targetPositions[i] = (x - side/2) * 10;
+                        targetPositions[i+1] = (y - side/2) * 10;
+                        targetPositions[i+2] = (z - side/2) * 10;
+                        currentPositions[i] = targetPositions[i];
+                        currentPositions[i+1] = targetPositions[i+1];
+                        currentPositions[i+2] = targetPositions[i+2];
+                        i += 3;
+                    }
+                }
+            }
+
             const geo = new THREE.BufferGeometry();
-            const count = 8000;
-            const pos = new Float32Array(count * 3);
-            for(let i=0; i<count*3; i++) pos[i] = (Math.random() - 0.5) * 300;
-            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-            
-            const mat = new THREE.PointsMaterial({ color: 0xff0055, size: 0.7, blending: THREE.AdditiveBlending });
+            geo.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
+            const mat = new THREE.PointsMaterial({ color: 0x00ffff, size: 0.8, blending: THREE.AdditiveBlending });
             particleSystem = new THREE.Points(geo, mat);
             scene.add(particleSystem);
             camera.position.z = 150;
 
-            animate();
+            renderLoop();
         }
 
-        function checkGestures(results) {
-            if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) return;
-
-            // 1. Heart Gesture (Two hands touching at tips)
-            if (!isMorphed && results.multiHandLandmarks.length === 2) {
-                const h1 = results.multiHandLandmarks[0][8]; // Index tip hand 1
-                const h2 = results.multiHandLandmarks[1][8]; // Index tip hand 2
-                const dist = Math.hypot(h1.x - h2.x, h1.y - h2.y);
-                if (dist < 0.05) {
-                    isMorphed = true;
-                    ui.innerText = "CLAP TO SMASH";
-                    morphToText();
-                }
-            }
-
-            // 2. Clap Detection (Proximity of palms)
-            if (isMorphed && !isCompressed && results.multiHandLandmarks.length === 2) {
-                const p1 = results.multiHandLandmarks[0][0]; // Wrist 1
-                const p2 = results.multiHandLandmarks[1][0]; // Wrist 2
-                const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-                if (dist < 0.1) {
-                    compressAndBreak();
-                }
+        function morphToLove() {
+            isMorphed = true;
+            particleSystem.material.color.set(0xff0055);
+            ui.innerText = "MOVE FACE CLOSER TO ZOOM - CLAP TO END";
+            
+            // Morph into "I LOVE U" block (Condensed text shape)
+            for(let i=0; i<targetPositions.length; i+=3) {
+                // We use a mathematical heart/text approximation
+                targetPositions[i] *= 0.8; 
+                targetPositions[i+1] *= 0.4; // Flatten into text line
+                targetPositions[i+2] *= 0.1; // Thin out
             }
         }
 
-        function morphToText() {
-            // Simplified Morph: Draw "I LOVE YOU" into the BufferGeometry
-            const positions = particleSystem.geometry.attributes.position.array;
-            // In a real implementation, we'd use FontLoader, but here we condense them to a center block
-            for(let i=0; i<positions.length; i+=3) {
-                positions[i] *= 0.1; // Compress X
-                positions[i+1] *= 0.1; // Compress Y
+        function explode() {
+            isExploded = true;
+            ui.innerText = "CONNECTION TERMINATED.";
+            for(let i=0; i<targetPositions.length; i++) {
+                targetPositions[i] += (Math.random()-0.5) * 1000;
+            }
+        }
+
+        function renderLoop() {
+            requestAnimationFrame(renderLoop);
+            
+            // Smoothly move current points toward target points
+            const pos = particleSystem.geometry.attributes.position.array;
+            for(let i=0; i<pos.length; i++) {
+                pos[i] += (targetPositions[i] - pos[i]) * 0.05;
             }
             particleSystem.geometry.attributes.position.needsUpdate = true;
-            ui.innerText = "I LOVE YOU - NOW CLAP TO BREAK IT";
-        }
-
-        function compressAndBreak() {
-            isCompressed = true;
-            new Audio('https://www.soundjay.com/misc/sounds/glass-break-1.mp3').play();
-            ui.innerText = "LOVE BROKEN.";
-            const positions = particleSystem.geometry.attributes.position.array;
-            for(let i=0; i<positions.length; i++) {
-                positions[i] += (Math.random() - 0.5) * 500; // Explode
-            }
-            particleSystem.geometry.attributes.position.needsUpdate = true;
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-            particleSystem.rotation.y += 0.002;
+            particleSystem.rotation.y += 0.005;
+            
             renderer.render(scene, camera);
         }
     </script>
