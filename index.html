@@ -3,89 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Realistic Hardware Failure</title>
+    <title>Shatter to Particle Morph</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }
+        #video { position: absolute; width: 100vw; height: 100vh; object-fit: cover; z-index: 1; transform: scaleX(-1); }
+        #crackCanvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; }
+        #threeContainer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 20; display: none; }
         
-        /* Mirroring and base video styling */
-        #video { 
-            position: absolute; width: 100vw; height: 100vh; 
-            object-fit: cover; z-index: 1; transform: scaleX(-1);
-        }
-
-        /* Glass Surface Grit & Dust Overlay */
-        #texture-overlay {
-            position: absolute; top: 0; left: 0;
-            width: 100vw; height: 100vh;
-            z-index: 15; pointer-events: none;
-            opacity: 0.1;
-            background-image: url('https://www.transparenttextures.com/patterns/glass-pass.png');
-            mix-blend-mode: screen;
-            transition: opacity 0.5s ease;
-        }
-
-        /* The Crack Layers */
-        #crackCanvas { 
-            position: absolute; top: 0; left: 0; 
-            width: 100vw; height: 100vh; z-index: 10; pointer-events: none; 
-            filter: drop-shadow(0px 0px 1.5px rgba(255,255,255,0.8));
-        }
-        
-        #message {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: #fff; font-size: 5rem; font-weight: 900; opacity: 0;
-            z-index: 100; text-shadow: 0 0 20px #ff0055, 0 0 60px #ff0055;
-            letter-spacing: 15px; text-transform: uppercase; pointer-events: none;
-        }
-
         #ui {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
             color: #0f0; background: rgba(0,0,0,0.9); padding: 12px 24px;
-            border-radius: 2px; z-index: 101; border: 1px solid #0f0;
-            text-transform: uppercase; font-size: 0.8rem; letter-spacing: 4px;
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+            z-index: 101; border: 1px solid #0f0; text-transform: uppercase; letter-spacing: 2px;
         }
 
-        /* Animation for hits */
-        .impact-shake {
-            animation: glitch-shake 0.2s infinite;
-        }
-
-        @keyframes glitch-shake {
-            0% { transform: translate(0,0) scaleX(-1); filter: contrast(3) brightness(2); }
-            25% { transform: translate(-5px, 5px) scaleX(-1.05); filter: hue-rotate(90deg); }
-            50% { transform: translate(5px, -5px) scaleX(-0.95); filter: invert(0.2); }
-            100% { transform: translate(0,0) scaleX(-1); }
-        }
+        .impact-flash { animation: flash 0.3s ease-out; }
+        @keyframes flash { 0% { filter: brightness(5) contrast(2); } 100% { filter: brightness(1) contrast(1); } }
     </style>
 </head>
 <body>
     <video id="video" autoplay playsinline></video>
-    <div id="texture-overlay"></div>
     <canvas id="crackCanvas"></canvas>
-    <div id="ui">SENSOR ACTIVE: BRING FACE CLOSER</div>
-    <div id="message">i love u</div>
+    <div id="threeContainer"></div>
+    <div id="ui">AWAITING IMPACT...</div>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
     <script type="module">
         const video = document.getElementById('video');
         const canvas = document.getElementById('crackCanvas');
         const ctx = canvas.getContext('2d');
         const ui = document.getElementById('ui');
-        const message = document.getElementById('message');
-        const overlay = document.getElementById('texture-overlay');
+        const threeContainer = document.getElementById('threeContainer');
 
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
         let hitCount = 0;
-        const maxHits = 9; 
-        let isDead = false;
-        let lastHitTime = 0;
+        const maxHits = 5;
+        let isMorphed = false;
+        let particles, scene, camera, renderer;
+        let mouseX = 0, mouseY = 0;
 
-        // --- Camera Failure Vars ---
-        let frameDropChance = 0; // Increases as screen breaks
-
+        // 1. MediaPipe Setup
         const faceMesh = new FaceMesh({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
         });
@@ -93,21 +53,24 @@
         faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.6 });
 
         faceMesh.onResults((results) => {
-            // Simulate frame dropping/lag for "damaged" camera realism
-            if (Math.random() < frameDropChance) return; 
-
-            if (results.multiFaceLandmarks && results.multiFaceLandmarks[0] && !isDead) {
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks[0]) {
                 const nose = results.multiFaceLandmarks[0][1];
-                const now = Date.now();
-                
-                if (nose.z < -0.1 && (now - lastHitTime > 1200)) { 
-                    lastHitTime = now;
-                    hitCount++;
-                    triggerDamage(nose.x * canvas.width, nose.y * canvas.height);
+                const indexFinger = results.multiFaceLandmarks[0][468]; // Use eye/nose for movement after morph
+
+                if (!isMorphed) {
+                    if (nose.z < -0.11) { 
+                        hitCount++;
+                        triggerShatter(nose.x * canvas.width, nose.y * canvas.height);
+                    }
+                } else {
+                    // Control particles with head/nose movement
+                    mouseX = (nose.x - 0.5) * 20;
+                    mouseY = (nose.y - 0.5) * -20;
                 }
             }
         });
 
+        // 2. Camera Start
         navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
             video.srcObject = stream;
             const predict = async () => {
@@ -117,102 +80,79 @@
             predict();
         });
 
-        function triggerDamage(x, y) {
-            // Hardware feedback
-            video.classList.add('impact-shake');
-            setTimeout(() => video.classList.remove('impact-shake'), 300);
-            
-            // Audio with variable pitch
-            const audio = new Audio('https://www.soundjay.com/misc/sounds/glass-break-1.mp3');
-            audio.playbackRate = 0.6 + (Math.random() * 0.6);
-            audio.play().catch(() => {});
+        // 3. Crack Logic
+        function triggerShatter(x, y) {
+            video.classList.add('impact-flash');
+            setTimeout(() => video.classList.remove('impact-flash'), 300);
 
-            // Update realism parameters
-            frameDropChance = hitCount * 0.08; 
-            overlay.style.opacity = (0.1 + (hitCount * 0.1)).toString();
-            ui.innerText = `CRITICAL FAILURE: HIT ${hitCount}/${maxHits}`;
-
-            // Draw Cracks
-            renderCracks(x, y, true);  // Structural
-            renderCracks(x, y, false); // Micro-splinters
-            renderDeadPixels(x, y);
-            renderLCDStripes(x);
+            // Draw basic 2D cracks
+            ctx.strokeStyle = "rgba(255,255,255,0.8)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            for(let i=0; i<10; i++) {
+                let angle = Math.random() * Math.PI * 2;
+                ctx.lineTo(x + Math.cos(angle) * 100, y + Math.sin(angle) * 100);
+                ctx.moveTo(x, y);
+            }
+            ctx.stroke();
 
             if (hitCount >= maxHits) {
-                killScreen();
+                morphTo3D();
             }
         }
 
-        function renderCracks(x, y, isDeep) {
-            const count = isDeep ? 10 : 25;
-            ctx.lineJoin = "round";
-            ctx.lineCap = "round";
+        // 4. Three.js Particle System
+        function morphTo3D() {
+            isMorphed = true;
+            ui.innerText = "SYSTEM MORPHED. CONTROL WITH HEAD GESTURES.";
+            video.style.display = 'none';
+            canvas.style.display = 'none';
+            threeContainer.style.display = 'block';
 
-            for (let i = 0; i < count; i++) {
-                let cx = x, cy = y;
-                let angle = isDeep ? (i / count) * Math.PI * 2 + Math.random() : Math.random() * Math.PI * 2;
-                let segments = isDeep ? 6 : 2;
+            // Setup Scene
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            threeContainer.appendChild(renderer.domElement);
 
-                let points = [{x, y}];
-                for (let j = 0; j < segments; j++) {
-                    let len = isDeep ? (Math.random() * 100 + 50) : (Math.random() * 20);
-                    cx += Math.cos(angle) * len;
-                    cy += Math.sin(angle) * len;
-                    angle += (Math.random() - 0.5) * 1.5;
-                    points.push({x: cx, y: cy});
-                }
-
-                // Shadow for 3D look
-                ctx.strokeStyle = "rgba(0,0,0,0.5)";
-                ctx.lineWidth = isDeep ? 3 : 1;
-                ctx.beginPath();
-                ctx.moveTo(points[0].x + 1.5, points[0].y + 1.5);
-                points.forEach(p => ctx.lineTo(p.x + 1.5, p.y + 1.5));
-                ctx.stroke();
-
-                // Highlight for glass edge
-                ctx.strokeStyle = isDeep ? "rgba(255,255,255,0.9)" : "rgba(200,220,255,0.6)";
-                ctx.lineWidth = isDeep ? 0.8 : 0.4;
-                ctx.beginPath();
-                ctx.moveTo(points[0].x, points[0].y);
-                points.forEach(p => ctx.lineTo(p.x, p.y));
-                ctx.stroke();
+            // Create Particles
+            const geometry = new THREE.BufferGeometry();
+            const vertices = [];
+            for (let i = 0; i < 15000; i++) {
+                vertices.push(THREE.MathUtils.randFloatSpread(200)); // x
+                vertices.push(THREE.MathUtils.randFloatSpread(200)); // y
+                vertices.push(THREE.MathUtils.randFloatSpread(200)); // z
             }
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            
+            const material = new THREE.PointsMaterial({ 
+                color: 0xff0055, 
+                size: 0.5, 
+                transparent: true, 
+                blending: THREE.AdditiveBlending 
+            });
+
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+            camera.position.z = 100;
+
+            animate3D();
         }
 
-        function renderDeadPixels(x, y) {
-            const size = 15 + (hitCount * 8);
-            const grad = ctx.createRadialGradient(x, y, 0, x, y, size);
-            grad.addColorStop(0, "black");
-            grad.addColorStop(0.7, "rgba(0,0,0,0.9)");
-            grad.addColorStop(1, "transparent");
-            
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.arc(x, y, size, 0, Math.PI * 2);
-            ctx.fill();
-        }
+        function animate3D() {
+            requestAnimationFrame(animate3D);
 
-        function renderLCDStripes(x) {
-            const colors = ['#0ff', '#f0f', '#fff', '#000'];
-            ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
-            ctx.globalAlpha = 0.4;
-            ctx.fillRect(x + (Math.random() - 0.5) * 80, 0, Math.random() * 4, canvas.height);
-            ctx.globalAlpha = 1;
-        }
+            // Morphing animation
+            particles.rotation.x += 0.001;
+            particles.rotation.y += 0.002;
 
-        function killScreen() {
-            isDead = true;
-            video.style.opacity = "0";
-            ui.style.display = "none";
-            overlay.style.opacity = "0.7";
-            
-            // Fill background with black behind existing cracks
-            ctx.globalCompositeOperation = 'destination-over';
-            ctx.fillStyle = "#050505";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            setTimeout(() => { message.style.opacity = "1"; }, 1200);
+            // Interactive movement based on MediaPipe tracking
+            particles.position.x += (mouseX - particles.position.x) * 0.05;
+            particles.position.y += (mouseY - particles.position.y) * 0.05;
+
+            renderer.render(scene, camera);
         }
     </script>
 </body>
