@@ -3,157 +3,159 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rishu's World | Hand Tracking Fix</title>
-    
-    <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-
+    <title>3D Egg Headbutt AR</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
-        #gate {
-            position: fixed; inset: 0; background: #000; z-index: 100;
-            display: flex; flex-direction: column; justify-content: center; align-items: center; color: white;
-        }
-        .btn {
-            background: #ff69b4; color: white; border: none; padding: 20px 50px;
-            border-radius: 50px; font-weight: bold; cursor: pointer; font-size: 1.2rem;
-        }
-        #webcam {
-            position: fixed; bottom: 10px; left: 10px; width: 140px; height: 100px;
-            border: 2px solid #ff69b4; z-index: 50; transform: scaleX(-1); border-radius: 10px;
-        }
+        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+        #video { position: absolute; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; transform: scaleX(-1); }
         #ui {
-            position: fixed; top: 10%; width: 100%; text-align: center;
-            pointer-events: none; color: white; z-index: 10;
+            position: absolute; top: 20px; left: 20px;
+            color: white; background: rgba(0,0,0,0.6);
+            padding: 15px; border-radius: 8px; pointer-events: none;
         }
-        .floating-img {
-            position: fixed; width: 180px; display: none; border-radius: 15px;
-            box-shadow: 0 0 30px #ff69b4; z-index: 5;
-        }
-        #hint {
-            position: fixed; bottom: 20px; width: 100%; text-align: center;
-            color: rgba(255,255,255,0.5); font-size: 0.8rem;
-        }
+        canvas { display: block; transform: scaleX(-1); } /* Mirror to match user */
     </style>
 </head>
 <body>
-
-    <div id="gate">
-        <button class="btn" onclick="startApp()">START MAGIC</button>
-    </div>
-
+    <video id="video" autoplay playsinline></video>
     <div id="ui">
-        <h1 id="title" style="letter-spacing: 8px;">READY...</h1>
-        <div id="status" style="color: #ff69b4; font-weight: bold;">WAVE YOUR HAND</div>
+        <h1>Headbutt the Egg!</h1>
+        <p>Loading Face Tracking...</p>
     </div>
 
-    <video id="webcam" autoplay playsinline></video>
-
-    <img id="imgA" src="https://github.com/alwaysvivek/rishubaby/blob/main/a.png?raw=true" class="floating-img" style="left: 10%; top: 30%;">
-    <img id="imgABC" src="https://github.com/alwaysvivek/rishubaby/blob/main/abc.JPG?raw=true" class="floating-img" style="right: 10%; top: 30%;">
-
-    <div id="hint">CLOSE FINGERS = PINCH | WIDE HAND = BRIDGE | RELAXED = NORMAL</div>
-
-    <audio id="bgMusic" src="https://github.com/alwaysvivek/rishubaby/blob/main/1.mp3?raw=true" loop></audio>
-
-    <script>
-        const COMPLIMENTS = ["Meri Jaan ❤️", "Prettiest Girl ✨", "Rishubabu 😽", "Cutiepie 🥧", "Rishubarbie 🎀"];
-        let scene, camera, renderer, particles, pData = [];
-        let hX = 0, hY = 0, currentG = "NONE";
-        const count = 1000;
-        const dummy = new THREE.Object3D();
-
-        function initThree() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-            camera.position.z = 15;
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
-
-            const mat = new THREE.MeshStandardMaterial({ color: 0xff69b4, emissive: 0xff1493, emissiveIntensity: 1.5 });
-            particles = new THREE.InstancedMesh(new THREE.SphereGeometry(0.12, 6, 6), mat, count);
-
-            for (let i = 0; i < count; i++) {
-                pData.push({
-                    t: Math.random() * 100,
-                    speed: 0.02 + Math.random() * 0.03,
-                    radius: 3 + Math.random() * 7,
-                    noise: new THREE.Vector3((Math.random()-0.5)*4, (Math.random()-0.5)*4, (Math.random()-0.5)*4)
-                });
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm"
             }
-            scene.add(particles, new THREE.AmbientLight(0xffffff, 1));
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import * as CANNON from 'cannon-es';
+
+        const video = document.getElementById('video');
+        const ui = document.querySelector('#ui p');
+        
+        // --- 1. MediaPipe Face Mesh Setup ---
+        const faceMesh = new FaceMesh({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+        });
+
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        let nosePos = { x: 0, y: 0, z: 0 };
+        faceMesh.onResults((results) => {
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks[0]) {
+                ui.innerText = "Face Detected! Headbutt an egg!";
+                // Landmark 1 is the nose tip
+                const nose = results.multiFaceLandmarks[0][1];
+                // Map 0-1 range to Three.js space (-5 to 5)
+                nosePos.x = (nose.x - 0.5) * 10;
+                nosePos.y = -(nose.y - 0.5) * 10;
+                nosePos.z = -5; // Depth where eggs drop
+            }
+        });
+
+        // --- 2. Camera & Scene Setup ---
+        navigator.mediaDevices.getUserMedia({ video: true }).then(s => {
+            video.srcObject = s;
+            const predict = async () => {
+                await faceMesh.send({ image: video });
+                requestAnimationFrame(predict);
+            };
+            predict();
+        });
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) });
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+
+        // Visualize the "Nose Hitbox" (Optional - invisible in final)
+        const noseHitbox = new THREE.Mesh(
+            new THREE.SphereGeometry(0.3), 
+            new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, transparent: true, opacity: 0.3 })
+        );
+        scene.add(noseHitbox);
+
+        // --- 3. Egg Logic ---
+        let eggs = [];
+        function spawnEgg() {
+            const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), new THREE.MeshPhongMaterial({color: 0xfdf5e6}));
+            scene.add(mesh);
+            const body = new CANNON.Body({ mass: 0.5, shape: new CANNON.Sphere(0.5) });
+            body.position.set((Math.random()-0.5)*6, 5, -5);
+            world.addBody(body);
+            eggs.push({ mesh, body, broken: false });
         }
 
+        setInterval(spawnEgg, 2000); // Drop an egg every 2 seconds
+
+        function breakEgg(egg) {
+            if (egg.broken) return;
+            egg.broken = true;
+            scene.remove(egg.mesh);
+            world.removeBody(egg.body);
+
+            // Simple "Shatter" explosion
+            for (let i = 0; i < 6; i++) {
+                const frag = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshPhongMaterial({color: 0xfdf5e6}));
+                frag.position.copy(egg.body.position);
+                scene.add(frag);
+                setTimeout(() => scene.remove(frag), 1000); // Cleanup
+            }
+        }
+
+        // --- 4. Animation & Collision ---
         function animate() {
             requestAnimationFrame(animate);
-            const time = Date.now() * 0.001;
-            pData.forEach((p, i) => {
-                p.t += p.speed;
-                let x = Math.cos(p.t) * p.radius;
-                let y = Math.sin(p.t) * p.radius;
-                let z = Math.sin(p.t * 0.5) * 2;
+            world.fixedStep();
 
-                if (currentG === "PINCH") {
-                    x = THREE.MathUtils.lerp(x, hX + p.noise.x, 0.1);
-                    y = THREE.MathUtils.lerp(y, hY + p.noise.y, 0.1);
-                } else if (currentG === "BRIDGE") {
-                    x = THREE.MathUtils.lerp(-18, 18, i/count);
-                    y = Math.sin(time * 3 + i * 0.2) * 2;
-                }
+            // Update nose visualizer
+            noseHitbox.position.set(nosePos.x, nosePos.y, nosePos.z);
 
-                dummy.position.set(x, y, z);
-                dummy.scale.setScalar(0.7 + Math.sin(p.t)*0.3);
-                dummy.updateMatrix();
-                particles.setMatrixAt(i, dummy.matrix);
-            });
-            particles.instanceMatrix.needsUpdate = true;
-            renderer.render(scene, camera);
-        }
-
-        function startApp() {
-            document.getElementById('gate').style.display = 'none';
-            document.getElementById('bgMusic').play();
-            initThree();
-            const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-            hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.5 });
-            
-            hands.onResults((res) => {
-                if (res.multiHandLandmarks && res.multiHandLandmarks.length > 0) {
-                    const pts = res.multiHandLandmarks[0];
-                    hX = (0.5 - pts[8].x) * 35; hY = (0.5 - pts[8].y) * 25;
+            eggs.forEach(egg => {
+                if (!egg.broken) {
+                    egg.mesh.position.copy(egg.body.position);
                     
-                    // EASIER DETECTION LOGIC
-                    const thumb = pts[4], index = pts[8], pinky = pts[20];
-                    const pinchDist = Math.hypot(thumb.x - index.x, thumb.y - index.y);
-                    const bridgeDist = Math.hypot(thumb.x - pinky.x, thumb.y - pinky.y);
+                    // CHECK HEADBUTT: Distance between nose and egg
+                    const dist = noseHitbox.position.distanceTo(egg.mesh.position);
+                    if (dist < 0.8) {
+                        breakEgg(egg);
+                    }
 
-                    if (pinchDist < 0.1) { // Wider pinch range
-                        currentG = "PINCH";
-                        setUI("CATCHING HEARTS", COMPLIMENTS[Math.floor(Date.now()/1500 % 5)]);
-                    } else if (bridgeDist > 0.4) { // Trigger bridge if thumb and pinky are far
-                        currentG = "BRIDGE";
-                        setUI("MUMBAI TO DELHI", "LONG DISTANCE LOVE");
-                        imgs(true);
-                    } else {
-                        currentG = "NONE";
-                        setUI("TRACKING...", "RISHUBARBIE");
-                        imgs(false);
+                    // Remove eggs that fall off screen
+                    if (egg.body.position.y < -6) {
+                        scene.remove(egg.mesh);
+                        world.removeBody(egg.body);
+                        egg.broken = true;
                     }
                 }
             });
 
-            const camInst = new Camera(document.getElementById('webcam'), {
-                onFrame: async () => { await hands.send({ image: document.getElementById('webcam') }); },
-                width: 640, height: 480
-            });
-            camInst.start();
-            animate();
+            renderer.render(scene, camera);
         }
 
-        function setUI(s, t) { document.getElementById('status').innerText = s; document.getElementById('title').innerText = t; }
-        function imgs(s) { document.getElementById('imgA').style.display = s?'block':'none'; document.getElementById('imgABC').style.display = s?'block':'none'; }
+        camera.position.z = 5;
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
     </script>
 </body>
 </html>
