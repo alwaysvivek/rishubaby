@@ -3,59 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate Hyper-Realistic Shatter</title>
+    <title>Realistic Hardware Failure</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; }
         
+        /* Mirroring and base video styling */
         #video { 
             position: absolute; width: 100vw; height: 100vh; 
             object-fit: cover; z-index: 1; transform: scaleX(-1);
-            transition: filter 0.2s ease;
         }
 
-        /* The Overlay Texture (Grain and Glass Grit) */
+        /* Glass Surface Grit & Dust Overlay */
         #texture-overlay {
             position: absolute; top: 0; left: 0;
             width: 100vw; height: 100vh;
             z-index: 15; pointer-events: none;
-            opacity: 0.15; /* Subtle grit */
+            opacity: 0.1;
             background-image: url('https://www.transparenttextures.com/patterns/glass-pass.png');
-            mix-blend-mode: overlay;
+            mix-blend-mode: screen;
+            transition: opacity 0.5s ease;
         }
 
+        /* The Crack Layers */
         #crackCanvas { 
             position: absolute; top: 0; left: 0; 
             width: 100vw; height: 100vh; z-index: 10; pointer-events: none; 
-            filter: drop-shadow(0px 0px 1.5px rgba(255,255,255,0.7));
+            filter: drop-shadow(0px 0px 1.5px rgba(255,255,255,0.8));
         }
         
         #message {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             color: #fff; font-size: 5rem; font-weight: 900; opacity: 0;
-            z-index: 100; text-shadow: 0 0 20px #ff0055, 0 0 50px #ff0055;
+            z-index: 100; text-shadow: 0 0 20px #ff0055, 0 0 60px #ff0055;
             letter-spacing: 15px; text-transform: uppercase; pointer-events: none;
         }
 
         #ui {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            color: #0f0; background: rgba(0,0,0,0.85); padding: 12px 24px;
-            border-radius: 4px; z-index: 101; border: 1px solid #0f0;
-            text-transform: uppercase; font-size: 0.85rem; letter-spacing: 3px;
-            box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
+            color: #0f0; background: rgba(0,0,0,0.9); padding: 12px 24px;
+            border-radius: 2px; z-index: 101; border: 1px solid #0f0;
+            text-transform: uppercase; font-size: 0.8rem; letter-spacing: 4px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
         }
 
-        .impact {
-            animation: shake 0.2s cubic-bezier(.36,.07,.19,.97) both;
-            filter: brightness(2.5) contrast(2) hue-rotate(10deg);
+        /* Animation for hits */
+        .impact-shake {
+            animation: glitch-shake 0.2s infinite;
         }
 
-        @keyframes shake {
-            0% { transform: translate(1px, 1px) rotate(0deg) scaleX(-1); }
-            20% { transform: translate(-3px, 0px) rotate(1deg) scaleX(-1); }
-            40% { transform: translate(3px, 2px) rotate(-1deg) scaleX(-1); }
-            60% { transform: translate(-3px, 1px) rotate(0deg) scaleX(-1); }
-            80% { transform: translate(3px, 1px) rotate(1deg) scaleX(-1); }
-            100% { transform: translate(1px, -2px) rotate(-1deg) scaleX(-1); }
+        @keyframes glitch-shake {
+            0% { transform: translate(0,0) scaleX(-1); filter: contrast(3) brightness(2); }
+            25% { transform: translate(-5px, 5px) scaleX(-1.05); filter: hue-rotate(90deg); }
+            50% { transform: translate(5px, -5px) scaleX(-0.95); filter: invert(0.2); }
+            100% { transform: translate(0,0) scaleX(-1); }
         }
     </style>
 </head>
@@ -63,7 +63,7 @@
     <video id="video" autoplay playsinline></video>
     <div id="texture-overlay"></div>
     <canvas id="crackCanvas"></canvas>
-    <div id="ui">AWAITING FORCE IMPACT...</div>
+    <div id="ui">SENSOR ACTIVE: BRING FACE CLOSER</div>
     <div id="message">i love u</div>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
@@ -79,9 +79,12 @@
         canvas.height = window.innerHeight;
 
         let hitCount = 0;
-        const maxHits = 8;
+        const maxHits = 9; 
         let isDead = false;
-        let lastHit = 0;
+        let lastHitTime = 0;
+
+        // --- Camera Failure Vars ---
+        let frameDropChance = 0; // Increases as screen breaks
 
         const faceMesh = new FaceMesh({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
@@ -90,14 +93,17 @@
         faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.6 });
 
         faceMesh.onResults((results) => {
+            // Simulate frame dropping/lag for "damaged" camera realism
+            if (Math.random() < frameDropChance) return; 
+
             if (results.multiFaceLandmarks && results.multiFaceLandmarks[0] && !isDead) {
                 const nose = results.multiFaceLandmarks[0][1];
                 const now = Date.now();
-                // Sensitivity at -0.1, with 1 second cooldown
-                if (nose.z < -0.1 && (now - lastHit > 1000)) { 
-                    lastHit = now;
+                
+                if (nose.z < -0.1 && (now - lastHitTime > 1200)) { 
+                    lastHitTime = now;
                     hitCount++;
-                    triggerImpact(nose.x * canvas.width, nose.y * canvas.height);
+                    triggerDamage(nose.x * canvas.width, nose.y * canvas.height);
                 }
             }
         });
@@ -111,70 +117,62 @@
             predict();
         });
 
-        function triggerImpact(x, y) {
-            video.classList.add('impact');
-            setTimeout(() => video.classList.remove('impact'), 250);
-
-            // Increase grit opacity with each hit
-            overlay.style.opacity = (0.15 + (hitCount * 0.1)).toString();
-
+        function triggerDamage(x, y) {
+            // Hardware feedback
+            video.classList.add('impact-shake');
+            setTimeout(() => video.classList.remove('impact-shake'), 300);
+            
+            // Audio with variable pitch
             const audio = new Audio('https://www.soundjay.com/misc/sounds/glass-break-1.mp3');
-            audio.playbackRate = 0.7 + (Math.random() * 0.5);
+            audio.playbackRate = 0.6 + (Math.random() * 0.6);
             audio.play().catch(() => {});
 
-            // Draw Layered Crack Systems
-            drawFracture(x, y, true);  // Primary deep cracks
-            drawFracture(x, y, false); // Micro-splinters
+            // Update realism parameters
+            frameDropChance = hitCount * 0.08; 
+            overlay.style.opacity = (0.1 + (hitCount * 0.1)).toString();
+            ui.innerText = `CRITICAL FAILURE: HIT ${hitCount}/${maxHits}`;
 
-            drawInkLeak(x, y);
-            drawLCDArtifacts(x);
+            // Draw Cracks
+            renderCracks(x, y, true);  // Structural
+            renderCracks(x, y, false); // Micro-splinters
+            renderDeadPixels(x, y);
+            renderLCDStripes(x);
 
             if (hitCount >= maxHits) {
-                isDead = true;
-                video.style.opacity = "0";
-                overlay.style.opacity = "0.8"; // Make the glass texture prominent on the black screen
-                ui.style.display = 'none';
-                
-                // Final Screen Kill
-                ctx.globalCompositeOperation = 'destination-over';
-                ctx.fillStyle = "#020202";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                setTimeout(() => { message.style.opacity = "1"; }, 1000);
+                killScreen();
             }
         }
 
-        function drawFracture(x, y, isPrimary) {
-            const lines = isPrimary ? 8 + Math.random() * 5 : 20 + Math.random() * 10;
-            const range = isPrimary ? 300 : 60; // Primary lines go far, micro stay near
+        function renderCracks(x, y, isDeep) {
+            const count = isDeep ? 10 : 25;
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
 
-            for (let i = 0; i < lines; i++) {
-                let currX = x, currY = y;
-                let angle = Math.random() * Math.PI * 2;
-                let segments = isPrimary ? 5 + Math.random() * 5 : 2;
+            for (let i = 0; i < count; i++) {
+                let cx = x, cy = y;
+                let angle = isDeep ? (i / count) * Math.PI * 2 + Math.random() : Math.random() * Math.PI * 2;
+                let segments = isDeep ? 6 : 2;
 
                 let points = [{x, y}];
                 for (let j = 0; j < segments; j++) {
-                    const step = isPrimary ? (40 + Math.random() * 80) : (5 + Math.random() * 15);
-                    currX += Math.cos(angle) * step;
-                    currY += Math.sin(angle) * step;
-                    angle += (Math.random() - 0.5) * 1.2;
-                    points.push({x: currX, y: currY});
+                    let len = isDeep ? (Math.random() * 100 + 50) : (Math.random() * 20);
+                    cx += Math.cos(angle) * len;
+                    cy += Math.sin(angle) * len;
+                    angle += (Math.random() - 0.5) * 1.5;
+                    points.push({x: cx, y: cy});
                 }
 
-                // Shadow Path
-                ctx.globalAlpha = isPrimary ? 0.5 : 0.2;
-                ctx.strokeStyle = "black";
-                ctx.lineWidth = isPrimary ? 2.5 : 1;
+                // Shadow for 3D look
+                ctx.strokeStyle = "rgba(0,0,0,0.5)";
+                ctx.lineWidth = isDeep ? 3 : 1;
                 ctx.beginPath();
-                ctx.moveTo(points[0].x + 1.2, points[0].y + 1.2);
-                points.forEach(p => ctx.lineTo(p.x + 1.2, p.y + 1.2));
+                ctx.moveTo(points[0].x + 1.5, points[0].y + 1.5);
+                points.forEach(p => ctx.lineTo(p.x + 1.5, p.y + 1.5));
                 ctx.stroke();
 
-                // Highlight Path
-                ctx.globalAlpha = isPrimary ? 0.9 : 0.6;
-                ctx.strokeStyle = isPrimary ? "rgba(255, 255, 255, 0.9)" : "rgba(200, 220, 255, 0.7)";
-                ctx.lineWidth = isPrimary ? 0.8 : 0.3;
+                // Highlight for glass edge
+                ctx.strokeStyle = isDeep ? "rgba(255,255,255,0.9)" : "rgba(200,220,255,0.6)";
+                ctx.lineWidth = isDeep ? 0.8 : 0.4;
                 ctx.beginPath();
                 ctx.moveTo(points[0].x, points[0].y);
                 points.forEach(p => ctx.lineTo(p.x, p.y));
@@ -182,27 +180,39 @@
             }
         }
 
-        function drawInkLeak(x, y) {
-            ctx.globalCompositeOperation = 'source-over';
-            const leakSize = 10 + (hitCount * 5);
-            const gradient = ctx.createRadialGradient(x, y, 0, x, y, leakSize);
-            gradient.addColorStop(0, "rgba(0,0,0,1)");
-            gradient.addColorStop(0.8, "rgba(10,10,20,0.9)");
-            gradient.addColorStop(1, "rgba(0,0,0,0)");
+        function renderDeadPixels(x, y) {
+            const size = 15 + (hitCount * 8);
+            const grad = ctx.createRadialGradient(x, y, 0, x, y, size);
+            grad.addColorStop(0, "black");
+            grad.addColorStop(0.7, "rgba(0,0,0,0.9)");
+            grad.addColorStop(1, "transparent");
             
-            ctx.fillStyle = gradient;
+            ctx.fillStyle = grad;
             ctx.beginPath();
-            ctx.arc(x, y, leakSize, 0, Math.PI * 2);
+            ctx.arc(x, y, size, 0, Math.PI * 2);
             ctx.fill();
         }
 
-        function drawLCDArtifacts(x) {
-            // Vertical dead pixel lines
-            const colors = ['#ff00ff', '#00ffff', '#ffffff', '#222222'];
-            ctx.globalAlpha = 0.4;
+        function renderLCDStripes(x) {
+            const colors = ['#0ff', '#f0f', '#fff', '#000'];
             ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
-            const width = Math.random() * 3;
-            ctx.fillRect(x + (Math.random()-0.5)*100, 0, width, canvas.height);
+            ctx.globalAlpha = 0.4;
+            ctx.fillRect(x + (Math.random() - 0.5) * 80, 0, Math.random() * 4, canvas.height);
+            ctx.globalAlpha = 1;
+        }
+
+        function killScreen() {
+            isDead = true;
+            video.style.opacity = "0";
+            ui.style.display = "none";
+            overlay.style.opacity = "0.7";
+            
+            // Fill background with black behind existing cracks
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = "#050505";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            setTimeout(() => { message.style.opacity = "1"; }, 1200);
         }
     </script>
 </body>
