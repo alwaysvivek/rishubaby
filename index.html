@@ -3,43 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Egg Headbutt AR</title>
+    <title>Screen Crack Surprise</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
-        #video { position: absolute; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; transform: scaleX(-1); }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial', sans-serif; }
+        
+        /* Video mirrored to feel natural */
+        #video { 
+            position: absolute; width: 100vw; height: 100vh; 
+            object-fit: cover; z-index: 1; transform: scaleX(-1); 
+        }
+
+        /* The Overlay for the crack and text */
+        #overlay {
+            position: absolute; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 10; pointer-events: none;
+        }
+
+        #message {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: white; font-size: 5rem; font-weight: bold;
+            text-shadow: 0 0 20px rgba(255, 0, 100, 0.8);
+            opacity: 0; transition: opacity 1.5s ease-in;
+            z-index: 11;
+        }
+
         #ui {
             position: absolute; top: 20px; left: 20px;
             color: white; background: rgba(0,0,0,0.6);
-            padding: 15px; border-radius: 8px; pointer-events: none;
+            padding: 10px; border-radius: 8px; z-index: 100;
         }
-        canvas { display: block; transform: scaleX(-1); } /* Mirror to match user */
+
+        .crack-svg {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            filter: drop-shadow(0px 0px 2px rgba(255,255,255,0.5));
+        }
     </style>
 </head>
 <body>
     <video id="video" autoplay playsinline></video>
-    <div id="ui">
-        <h1>Headbutt the Egg!</h1>
-        <p>Loading Face Tracking...</p>
+    <div id="ui">Get ready... Move your head close to the screen!</div>
+    <div id="message">i love u</div>
+    
+    <div id="overlay">
+        <svg id="crack-container" class="crack-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+            </svg>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm"
-            }
-        }
-    </script>
-
     <script type="module">
-        import * as THREE from 'three';
-        import * as CANNON from 'cannon-es';
-
         const video = document.getElementById('video');
-        const ui = document.querySelector('#ui p');
-        
-        // --- 1. MediaPipe Face Mesh Setup ---
+        const ui = document.getElementById('ui');
+        const message = document.getElementById('message');
+        const crackContainer = document.getElementById('crack-container');
+
+        let isCracked = false;
+
+        // --- 1. Face Tracking Setup ---
         const faceMesh = new FaceMesh({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
         });
@@ -51,22 +73,21 @@
             minTrackingConfidence: 0.5
         });
 
-        let nosePos = { x: 0, y: 0, z: 0 };
         faceMesh.onResults((results) => {
-            if (results.multiFaceLandmarks && results.multiFaceLandmarks[0]) {
-                ui.innerText = "Face Detected! Headbutt an egg!";
-                // Landmark 1 is the nose tip
-                const nose = results.multiFaceLandmarks[0][1];
-                // Map 0-1 range to Three.js space (-5 to 5)
-                nosePos.x = (nose.x - 0.5) * 10;
-                nosePos.y = -(nose.y - 0.5) * 10;
-                nosePos.z = -5; // Depth where eggs drop
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks[0] && !isCracked) {
+                const nose = results.multiFaceLandmarks[0][1]; // Nose tip
+                
+                // MediaPipe Z is depth. Smaller values = closer to camera.
+                // We detect a "headbutt" if Z drops below a threshold (e.g., -0.1)
+                if (nose.z < -0.12) { 
+                    triggerCrack(nose.x * 100, nose.y * 100);
+                }
             }
         });
 
-        // --- 2. Camera & Scene Setup ---
-        navigator.mediaDevices.getUserMedia({ video: true }).then(s => {
-            video.srcObject = s;
+        // --- 2. Camera Start ---
+        navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+            video.srcObject = stream;
             const predict = async () => {
                 await faceMesh.send({ image: video });
                 requestAnimationFrame(predict);
@@ -74,88 +95,38 @@
             predict();
         });
 
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
+        // --- 3. Crack Animation & Surprise ---
+        function triggerCrack(x, y) {
+            isCracked = true;
+            ui.style.display = 'none';
 
-        const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) });
-        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            // Create procedural crack paths
+            for (let i = 0; i < 8; i++) {
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                const length = 20 + Math.random() * 30;
+                const angle = (i / 8) * Math.PI * 2 + (Math.random() * 0.5);
+                
+                const xEnd = x + Math.cos(angle) * length;
+                const yEnd = y + Math.sin(angle) * length;
 
-        // Visualize the "Nose Hitbox" (Optional - invisible in final)
-        const noseHitbox = new THREE.Mesh(
-            new THREE.SphereGeometry(0.3), 
-            new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, transparent: true, opacity: 0.3 })
-        );
-        scene.add(noseHitbox);
+                // Jagged line logic
+                const midX = x + Math.cos(angle) * (length/2) + (Math.random() - 0.5) * 5;
+                const midY = y + Math.sin(angle) * (length/2) + (Math.random() - 0.5) * 5;
 
-        // --- 3. Egg Logic ---
-        let eggs = [];
-        function spawnEgg() {
-            const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), new THREE.MeshPhongMaterial({color: 0xfdf5e6}));
-            scene.add(mesh);
-            const body = new CANNON.Body({ mass: 0.5, shape: new CANNON.Sphere(0.5) });
-            body.position.set((Math.random()-0.5)*6, 5, -5);
-            world.addBody(body);
-            eggs.push({ mesh, body, broken: false });
-        }
-
-        setInterval(spawnEgg, 2000); // Drop an egg every 2 seconds
-
-        function breakEgg(egg) {
-            if (egg.broken) return;
-            egg.broken = true;
-            scene.remove(egg.mesh);
-            world.removeBody(egg.body);
-
-            // Simple "Shatter" explosion
-            for (let i = 0; i < 6; i++) {
-                const frag = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshPhongMaterial({color: 0xfdf5e6}));
-                frag.position.copy(egg.body.position);
-                scene.add(frag);
-                setTimeout(() => scene.remove(frag), 1000); // Cleanup
+                const d = `M ${x} ${y} L ${midX} ${midY} L ${xEnd} ${yEnd}`;
+                
+                line.setAttribute("d", d);
+                line.setAttribute("stroke", "rgba(255,255,255,0.8)");
+                line.setAttribute("stroke-width", "0.5");
+                line.setAttribute("fill", "none");
+                crackContainer.appendChild(line);
             }
+
+            // Show Message
+            setTimeout(() => {
+                message.style.opacity = "1";
+            }, 300);
         }
-
-        // --- 4. Animation & Collision ---
-        function animate() {
-            requestAnimationFrame(animate);
-            world.fixedStep();
-
-            // Update nose visualizer
-            noseHitbox.position.set(nosePos.x, nosePos.y, nosePos.z);
-
-            eggs.forEach(egg => {
-                if (!egg.broken) {
-                    egg.mesh.position.copy(egg.body.position);
-                    
-                    // CHECK HEADBUTT: Distance between nose and egg
-                    const dist = noseHitbox.position.distanceTo(egg.mesh.position);
-                    if (dist < 0.8) {
-                        breakEgg(egg);
-                    }
-
-                    // Remove eggs that fall off screen
-                    if (egg.body.position.y < -6) {
-                        scene.remove(egg.mesh);
-                        world.removeBody(egg.body);
-                        egg.broken = true;
-                    }
-                }
-            });
-
-            renderer.render(scene, camera);
-        }
-
-        camera.position.z = 5;
-        animate();
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
     </script>
 </body>
 </html>
