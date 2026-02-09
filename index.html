@@ -1,211 +1,317 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shatter & 3D Grid Morph</title>
+    <title>A Rose for Rishu ❤️</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; color: #0f0; }
-        #video { position: absolute; width: 100vw; height: 100vh; object-fit: cover; z-index: 1; transform: scaleX(-1); }
-        #crackCanvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; }
-        #threeContainer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 20; display: none; }
-        
-        #ui {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.85); padding: 15px 25px; border-radius: 5px;
-            z-index: 101; border: 1px solid #0f0; text-align: center;
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #1a0505 0%, #000000 100%);
+            font-family: 'Georgia', serif;
         }
 
-        #depth-meter {
-            width: 200px; height: 10px; background: #222; margin-top: 10px; border: 1px solid #0f0;
+        #ui-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            text-align: center;
+            color: #fff;
+            pointer-events: none;
+            z-index: 10;
         }
-        #depth-bar { width: 0%; height: 100%; background: #0f0; transition: width 0.1s; }
+
+        h1 {
+            font-size: clamp(1.8rem, 7vw, 4rem);
+            color: #ff4d6d;
+            text-shadow: 0 0 25px rgba(255, 77, 109, 0.9);
+            margin: 0;
+            opacity: 0;
+            transform: scale(0.8) translateY(20px);
+            transition: all 1.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* The Secret Love Note - Now positioned above the H1 */
+        #secret-message {
+            position: absolute;
+            top: -40px;
+            /* Moves it just above the red text */
+            text-align: center;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 800px;
+            color: #ffd700;
+            font-size: clamp(0.9rem, 3vw, 1.3rem);
+            line-height: 1.4;
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+            font-style: italic;
+            opacity: 0;
+            transition: opacity 3s ease-in-out 1s;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 40px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-family: sans-serif;
+        }
+
+        #charge-container {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #charge-bar {
+            width: 0%;
+            height: 100%;
+            background: #ff4d6d;
+            box-shadow: 0 0 15px #ff4d6d;
+        }
+
+        #input_video {
+            display: none;
+        }
+
+        .active-text {
+            opacity: 1 !important;
+            transform: scale(1) translateY(0) !important;
+        }
     </style>
 </head>
+
 <body>
-    <video id="video" autoplay playsinline></video>
-    <canvas id="crackCanvas"></canvas>
-    <div id="threeContainer"></div>
-    
-    <div id="ui">
-        <div id="status">AWAITING IMPACT (0/2)</div>
-        <div id="depth-meter"><div id="depth-bar"></div></div>
-        <small style="font-size: 0.6rem;">LEAN IN UNTIL BAR IS FULL</small>
+
+    <div id="ui-overlay">
+        <div id="secret-message">
+            "I've seen a lotta roses, but none are prettier than you.."
+        </div>
+        <h1 id="main-text">Happy Rose Day meri jaan ❤️</h1>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <div id="charge-container">
+        <div id="charge-bar"></div>
+    </div>
+
+    <div id="instructions">
+        Move hand to Rotate 🖐️ • Smile to Bloom 👄 • Hold Heart to Explode ❤️
+    </div>
+
+    <video id="input_video" playsinline></video>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
 
     <script type="module">
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('crackCanvas');
-        const ctx = canvas.getContext('2d');
-        const uiStatus = document.getElementById('status');
-        const depthBar = document.getElementById('depth-bar');
-        const threeContainer = document.getElementById('threeContainer');
+        import * as THREE from 'three';
 
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        const PETAL_COUNT = 18000;
+        const STEM_COUNT = 4000;
+        const TOTAL_COUNT = PETAL_COUNT + STEM_COUNT;
 
-        let hitCount = 0;
-        const maxHits = 2; 
-        let isDead = false, isMorphed = false, isExploded = false;
-        let lastHitTime = 0;
-        let scene, camera, renderer, particleSystem, targetPositions;
+        let state = 'rose';
+        let targetBloom = 0.7;
+        let currentBloom = 0.7;
+        let zoomLevel = 22;
+        let time = 0;
+        let heartCharge = 0;
+        const CHARGE_NEEDED = 100;
 
-        // --- 1. Mediapipe Setup ---
-        const faceMesh = new FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
-        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5 });
+        let targetRotX = 0;
+        let targetRotY = 0;
 
-        const hands = new Hands({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
-        hands.setOptions({ maxNumHands: 2, minDetectionConfidence: 0.6 });
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
 
-        faceMesh.onResults((results) => {
-            if (results.multiFaceLandmarks && results.multiFaceLandmarks[0]) {
-                const nose = results.multiFaceLandmarks[0][1];
-                
-                // Visualization of depth for user
-                // Normal Z range is approx 0.0 to -0.15. We map this to 0-100%
-                let depthPercent = Math.min(Math.max((Math.abs(nose.z) * 600), 0), 100);
-                depthBar.style.width = depthPercent + "%";
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(TOTAL_COUNT * 3);
+        const baseCoords = new Float32Array(TOTAL_COUNT * 3);
+        const colors = new Float32Array(TOTAL_COUNT * 3);
+        const velocities = new Float32Array(TOTAL_COUNT * 3);
 
-                if (!isDead) {
-                    // Easier Trigger: If bar is over 85% full
-                    if (depthPercent > 85 && (Date.now() - lastHitTime > 1500)) {
-                        lastHitTime = Date.now();
-                        hitCount++;
-                        triggerShatter(nose.x * window.innerWidth, nose.y * window.innerHeight);
+        const colorInner = new THREE.Color(0x9e012e);
+        const colorOuter = new THREE.Color(0xff4d6d);
+        const colorStem = new THREE.Color(0x1a401a);
+
+        for (let i = 0; i < TOTAL_COUNT; i++) {
+            const i3 = i * 3;
+            if (i < PETAL_COUNT) {
+                const ratio = i / PETAL_COUNT;
+                const angle = i * 137.508 * (Math.PI / 180);
+                const radius = Math.sqrt(i) * 0.12;
+                baseCoords[i3] = Math.cos(angle) * radius;
+                baseCoords[i3 + 1] = Math.pow(radius, 1.4) * 0.18 - (ratio * 2.5) + 2;
+                baseCoords[i3 + 2] = Math.sin(angle) * radius;
+                colorInner.clone().lerp(colorOuter, ratio).toArray(colors, i3);
+            } else {
+                const ratio = (i - PETAL_COUNT) / STEM_COUNT;
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 0.12 + (Math.random() * 0.05);
+                baseCoords[i3] = Math.cos(angle) * radius;
+                baseCoords[i3 + 1] = -ratio * 12 + 1.5;
+                baseCoords[i3 + 2] = Math.sin(angle) * radius;
+                colorStem.toArray(colors, i3);
+            }
+            velocities[i3] = (Math.random() - 0.5) * 0.2;
+            velocities[i3 + 1] = (Math.random() - 0.5) * 0.2;
+            velocities[i3 + 2] = (Math.random() - 0.5) * 0.2;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const material = new THREE.PointsMaterial({ size: 0.07, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+        const roseGroup = new THREE.Group();
+        const rosePoints = new THREE.Points(geometry, material);
+        roseGroup.add(rosePoints);
+        scene.add(roseGroup);
+
+        async function initTracking() {
+            const videoElement = document.getElementById('input_video');
+            const hands = new window.Hands({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+            const faceMesh = new window.FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+
+            hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.6 });
+            faceMesh.setOptions({ refineLandmarks: true, minDetectionConfidence: 0.6 });
+
+            hands.onResults((res) => {
+                if (res.multiHandLandmarks.length > 0) {
+                    const h1 = res.multiHandLandmarks[0];
+                    targetRotY = (h1[9].x - 0.5) * Math.PI * 2;
+                    targetRotX = (h1[9].y - 0.5) * Math.PI;
+
+                    if (res.multiHandLandmarks.length === 2) {
+                        const h2 = res.multiHandLandmarks[1];
+                        const indexDist = Math.hypot(h1[8].x - h2[8].x, h1[8].y - h2[8].y);
+                        const thumbDist = Math.hypot(h1[4].x - h2[4].x, h1[4].y - h2[4].y);
+
+                        if (indexDist < 0.1 && thumbDist < 0.15) {
+                            heartCharge = Math.min(heartCharge + 1.2, CHARGE_NEEDED);
+                            document.getElementById('charge-container').style.opacity = "1";
+                        } else {
+                            heartCharge = Math.max(0, heartCharge - 2);
+                        }
+                    } else {
+                        const pinch = Math.hypot(h1[4].x - h1[8].x, h1[4].y - h1[8].y);
+                        zoomLevel = THREE.MathUtils.mapLinear(pinch, 0.05, 0.3, 30, 10);
+                        heartCharge = Math.max(0, heartCharge - 2);
                     }
                 } else {
-                    // Proximity Zoom: Camera Z moves with your face
-                    let zoomZ = 150 + (nose.z * 500);
-                    if(camera) camera.position.z += (zoomZ - camera.position.z) * 0.1;
+                    heartCharge = Math.max(0, heartCharge - 2);
                 }
-            }
-        });
 
-        hands.onResults((results) => {
-            if (isDead && results.multiHandLandmarks?.length === 2) {
-                const h1 = results.multiHandLandmarks[0][8];
-                const h2 = results.multiHandLandmarks[1][8];
-                const w1 = results.multiHandLandmarks[0][0];
-                const w2 = results.multiHandLandmarks[1][0];
+                if (heartCharge >= CHARGE_NEEDED) triggerFinal();
+                document.getElementById('charge-bar').style.width = `${heartCharge}%`;
+                if (heartCharge <= 0) document.getElementById('charge-container').style.opacity = "0";
+            });
 
-                // Heart detection (index tips together)
-                if (!isMorphed && Math.hypot(h1.x - h2.x, h1.y - h2.y) < 0.06) {
-                    morphToLove();
+            faceMesh.onResults((res) => {
+                if (res.multiFaceLandmarks?.[0]) {
+                    const top = res.multiFaceLandmarks[0][13];
+                    const bot = res.multiFaceLandmarks[0][14];
+                    targetBloom = Math.abs(top.y - bot.y) > 0.03 ? 2.8 : 0.7;
                 }
-                // Clap detection (wrists together)
-                if (isMorphed && !isExploded && Math.hypot(w1.x - w2.x, w1.y - w2.y) < 0.12) {
-                    explode();
-                }
-            }
-        });
+            });
 
-        // Start Camera
-        async function run() {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            video.srcObject = stream;
-            const pred = async () => {
-                await faceMesh.send({ image: video });
-                await hands.send({ image: video });
-                requestAnimationFrame(pred);
-            };
-            pred();
-        }
-        run();
-
-        function triggerShatter(x, y) {
-            uiStatus.innerText = `CRITICAL FAILURE: ${hitCount}/2`;
-            new Audio('https://www.soundjay.com/misc/sounds/glass-break-1.mp3').play().catch(()=>{});
-            
-            ctx.strokeStyle = "rgba(255,255,255,0.9)";
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            for(let i=0; i<15; i++) {
-                ctx.moveTo(x, y);
-                let a = Math.random() * Math.PI * 2;
-                ctx.lineTo(x + Math.cos(a) * 300, y + Math.sin(a) * 300);
-            }
-            ctx.stroke();
-
-            if (hitCount >= maxHits) start3D();
+            const cameraPipe = new window.Camera(videoElement, {
+                onFrame: async () => {
+                    await hands.send({ image: videoElement });
+                    await faceMesh.send({ image: videoElement });
+                },
+                width: 640, height: 480
+            });
+            cameraPipe.start();
         }
 
-        function start3D() {
-            isDead = true;
-            video.style.display = 'none';
-            canvas.style.display = 'none';
-            threeContainer.style.display = 'block';
-            uiStatus.innerText = "HEART GESTURE TO REVEAL MESSAGE";
+        function triggerFinal() {
+            if (state === 'love') return;
+            state = 'love';
+            document.getElementById('main-text').classList.add('active-text');
+            document.getElementById('secret-message').style.opacity = "1";
+            document.getElementById('instructions').style.display = "none";
+            document.getElementById('charge-container').style.display = "none";
+        }
 
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 1, 1000);
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            threeContainer.appendChild(renderer.domElement);
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.01;
+            currentBloom = THREE.MathUtils.lerp(currentBloom, targetBloom, 0.05);
+            camera.position.z = THREE.MathUtils.lerp(camera.position.z, zoomLevel, 0.05);
 
-            const count = 8000;
-            const currentPos = new Float32Array(count * 3);
-            targetPositions = new Float32Array(count * 3);
+            if (state === 'rose') {
+                roseGroup.rotation.y = THREE.MathUtils.lerp(roseGroup.rotation.y, targetRotY, 0.05);
+                roseGroup.rotation.x = THREE.MathUtils.lerp(roseGroup.rotation.x, targetRotX, 0.05);
+            }
 
-            // Create Grid Cube
-            let side = 20; 
-            let idx = 0;
-            for(let x=0; x<side; x++) {
-                for(let y=0; y<side; y++) {
-                    for(let z=0; z<side; z++) {
-                        if(idx >= count*3) break;
-                        targetPositions[idx] = (x - 10) * 8;
-                        targetPositions[idx+1] = (y - 10) * 8;
-                        targetPositions[idx+2] = (z - 10) * 8;
-                        currentPos[idx] = targetPositions[idx];
-                        currentPos[idx+1] = targetPositions[idx+1];
-                        currentPos[idx+2] = targetPositions[idx+2];
-                        idx += 3;
+            const pos = geometry.attributes.position.array;
+            const col = geometry.attributes.color.array;
+            const pulse = 1 + (heartCharge / 100) * 0.3 * Math.sin(time * 15);
+
+            for (let i = 0; i < TOTAL_COUNT; i++) {
+                const i3 = i * 3;
+                if (state === 'rose') {
+                    if (i < PETAL_COUNT) {
+                        pos[i3] = baseCoords[i3] * currentBloom * pulse;
+                        pos[i3 + 1] = (baseCoords[i3 + 1] + Math.sin(time + i * 0.01) * 0.02) * pulse;
+                        pos[i3 + 2] = baseCoords[i3 + 2] * currentBloom * pulse;
+                    } else {
+                        pos[i3] = baseCoords[i3] + Math.sin(time + baseCoords[i3 + 1]) * 0.05;
+                        pos[i3 + 1] = baseCoords[i3 + 1];
+                        pos[i3 + 2] = baseCoords[i3 + 2];
                     }
+                } else {
+                    pos[i3] += (pos[i3] * 0.05) + velocities[i3];
+                    pos[i3 + 1] += (pos[i3 + 1] * 0.05) + velocities[i3 + 1];
+                    pos[i3 + 2] += (pos[i3 + 2] * 0.05) + velocities[i3 + 2];
+                    col[i3] += (1.0 - col[i3]) * 0.05;
+                    col[i3 + 1] += (0.8 - col[i3 + 1]) * 0.05;
+                    col[i3 + 2] += (0.3 - col[i3 + 2]) * 0.05;
+                    material.size = 0.09;
                 }
             }
-
-            const geo = new THREE.BufferGeometry();
-            geo.setAttribute('position', new THREE.BufferAttribute(currentPos, 3));
-            const mat = new THREE.PointsMaterial({ color: 0x00ffff, size: 0.7, blending: THREE.AdditiveBlending });
-            particleSystem = new THREE.Points(geo, mat);
-            scene.add(particleSystem);
-            camera.position.z = 150;
-
-            function loop() {
-                requestAnimationFrame(loop);
-                const positions = particleSystem.geometry.attributes.position.array;
-                for(let i=0; i<positions.length; i++) {
-                    positions[i] += (targetPositions[i] - positions[i]) * 0.08;
-                }
-                particleSystem.geometry.attributes.position.needsUpdate = true;
-                particleSystem.rotation.y += 0.005;
-                renderer.render(scene, camera);
-            }
-            loop();
+            geometry.attributes.position.needsUpdate = true;
+            geometry.attributes.color.needsUpdate = true;
+            camera.lookAt(0, 0, 0);
+            renderer.render(scene, camera);
         }
 
-        function morphToLove() {
-            isMorphed = true;
-            particleSystem.material.color.set(0xff0055);
-            uiStatus.innerText = "I LOVE YOU - CLAP TO END";
-            for(let i=0; i<targetPositions.length; i+=3) {
-                targetPositions[i] *= 1.2; 
-                targetPositions[i+1] *= 0.1; // Flatten into text line
-                targetPositions[i+2] = 0;
-            }
-        }
+        initTracking();
+        animate();
 
-        function explode() {
-            isExploded = true;
-            uiStatus.innerText = "SHATTERED.";
-            for(let i=0; i<targetPositions.length; i++) {
-                targetPositions[i] += (Math.random()-0.5) * 1500;
-            }
-        }
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
     </script>
 </body>
+
 </html>
