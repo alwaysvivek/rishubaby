@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A Rose for Rishu ❤️</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #1a0505 0%, #000000 100%);
+            font-family: 'Georgia', serif;
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            text-align: center;
+            color: #fff;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: clamp(1.8rem, 7vw, 4rem);
+            color: #ff4d6d;
+            text-shadow: 0 0 25px rgba(255, 77, 109, 0.9);
+            margin: 0;
+            opacity: 0;
+            transform: scale(0.8) translateY(20px);
+            transition: all 1.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* The Secret Love Note - Now positioned above the H1 */
+        #secret-message {
+            position: absolute;
+            top: -40px;
+            /* Moves it just above the red text */
+            text-align: center;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 800px;
+            color: #ffd700;
+            font-size: clamp(0.9rem, 3vw, 1.3rem);
+            line-height: 1.4;
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+            font-style: italic;
+            opacity: 0;
+            transition: opacity 3s ease-in-out 1s;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 40px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-family: sans-serif;
+        }
+
+        #charge-container {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #charge-bar {
+            width: 0%;
+            height: 100%;
+            background: #ff4d6d;
+            box-shadow: 0 0 15px #ff4d6d;
+        }
+
+        #input_video {
+            display: none;
+        }
+
+        .active-text {
+            opacity: 1 !important;
+            transform: scale(1) translateY(0) !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="ui-overlay">
+        <div id="secret-message">
+            "I've seen a lotta roses, but none are prettier than you.."
+        </div>
+        <h1 id="main-text">Happy Rose Day meri jaan ❤️</h1>
+    </div>
+
+    <div id="charge-container">
+        <div id="charge-bar"></div>
+    </div>
+
+    <div id="instructions">
+        Move hand to Rotate 🖐️ • Smile to Bloom 👄 • Hold Heart to Explode ❤️
+    </div>
+
+    <video id="input_video" playsinline></video>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        const PETAL_COUNT = 18000;
+        const STEM_COUNT = 4000;
+        const TOTAL_COUNT = PETAL_COUNT + STEM_COUNT;
+
+        let state = 'rose';
+        let targetBloom = 0.7;
+        let currentBloom = 0.7;
+        let zoomLevel = 22;
+        let time = 0;
+        let heartCharge = 0;
+        const CHARGE_NEEDED = 100;
+
+        let targetRotX = 0;
+        let targetRotY = 0;
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(TOTAL_COUNT * 3);
+        const baseCoords = new Float32Array(TOTAL_COUNT * 3);
+        const colors = new Float32Array(TOTAL_COUNT * 3);
+        const velocities = new Float32Array(TOTAL_COUNT * 3);
+
+        const colorInner = new THREE.Color(0x9e012e);
+        const colorOuter = new THREE.Color(0xff4d6d);
+        const colorStem = new THREE.Color(0x1a401a);
+
+        for (let i = 0; i < TOTAL_COUNT; i++) {
+            const i3 = i * 3;
+            if (i < PETAL_COUNT) {
+                const ratio = i / PETAL_COUNT;
+                const angle = i * 137.508 * (Math.PI / 180);
+                const radius = Math.sqrt(i) * 0.12;
+                baseCoords[i3] = Math.cos(angle) * radius;
+                baseCoords[i3 + 1] = Math.pow(radius, 1.4) * 0.18 - (ratio * 2.5) + 2;
+                baseCoords[i3 + 2] = Math.sin(angle) * radius;
+                colorInner.clone().lerp(colorOuter, ratio).toArray(colors, i3);
+            } else {
+                const ratio = (i - PETAL_COUNT) / STEM_COUNT;
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 0.12 + (Math.random() * 0.05);
+                baseCoords[i3] = Math.cos(angle) * radius;
+                baseCoords[i3 + 1] = -ratio * 12 + 1.5;
+                baseCoords[i3 + 2] = Math.sin(angle) * radius;
+                colorStem.toArray(colors, i3);
+            }
+            velocities[i3] = (Math.random() - 0.5) * 0.2;
+            velocities[i3 + 1] = (Math.random() - 0.5) * 0.2;
+            velocities[i3 + 2] = (Math.random() - 0.5) * 0.2;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const material = new THREE.PointsMaterial({ size: 0.07, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+        const roseGroup = new THREE.Group();
+        const rosePoints = new THREE.Points(geometry, material);
+        roseGroup.add(rosePoints);
+        scene.add(roseGroup);
+
+        async function initTracking() {
+            const videoElement = document.getElementById('input_video');
+            const hands = new window.Hands({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+            const faceMesh = new window.FaceMesh({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+
+            hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.6 });
+            faceMesh.setOptions({ refineLandmarks: true, minDetectionConfidence: 0.6 });
+
+            hands.onResults((res) => {
+                if (res.multiHandLandmarks.length > 0) {
+                    const h1 = res.multiHandLandmarks[0];
+                    targetRotY = (h1[9].x - 0.5) * Math.PI * 2;
+                    targetRotX = (h1[9].y - 0.5) * Math.PI;
+
+                    if (res.multiHandLandmarks.length === 2) {
+                        const h2 = res.multiHandLandmarks[1];
+                        const indexDist = Math.hypot(h1[8].x - h2[8].x, h1[8].y - h2[8].y);
+                        const thumbDist = Math.hypot(h1[4].x - h2[4].x, h1[4].y - h2[4].y);
+
+                        if (indexDist < 0.1 && thumbDist < 0.15) {
+                            heartCharge = Math.min(heartCharge + 1.2, CHARGE_NEEDED);
+                            document.getElementById('charge-container').style.opacity = "1";
+                        } else {
+                            heartCharge = Math.max(0, heartCharge - 2);
+                        }
+                    } else {
+                        const pinch = Math.hypot(h1[4].x - h1[8].x, h1[4].y - h1[8].y);
+                        zoomLevel = THREE.MathUtils.mapLinear(pinch, 0.05, 0.3, 30, 10);
+                        heartCharge = Math.max(0, heartCharge - 2);
+                    }
+                } else {
+                    heartCharge = Math.max(0, heartCharge - 2);
+                }
+
+                if (heartCharge >= CHARGE_NEEDED) triggerFinal();
+                document.getElementById('charge-bar').style.width = `${heartCharge}%`;
+                if (heartCharge <= 0) document.getElementById('charge-container').style.opacity = "0";
+            });
+
+            faceMesh.onResults((res) => {
+                if (res.multiFaceLandmarks?.[0]) {
+                    const top = res.multiFaceLandmarks[0][13];
+                    const bot = res.multiFaceLandmarks[0][14];
+                    targetBloom = Math.abs(top.y - bot.y) > 0.03 ? 2.8 : 0.7;
+                }
+            });
+
+            const cameraPipe = new window.Camera(videoElement, {
+                onFrame: async () => {
+                    await hands.send({ image: videoElement });
+                    await faceMesh.send({ image: videoElement });
+                },
+                width: 640, height: 480
+            });
+            cameraPipe.start();
+        }
+
+        function triggerFinal() {
+            if (state === 'love') return;
+            state = 'love';
+            document.getElementById('main-text').classList.add('active-text');
+            document.getElementById('secret-message').style.opacity = "1";
+            document.getElementById('instructions').style.display = "none";
+            document.getElementById('charge-container').style.display = "none";
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.01;
+            currentBloom = THREE.MathUtils.lerp(currentBloom, targetBloom, 0.05);
+            camera.position.z = THREE.MathUtils.lerp(camera.position.z, zoomLevel, 0.05);
+
+            if (state === 'rose') {
+                roseGroup.rotation.y = THREE.MathUtils.lerp(roseGroup.rotation.y, targetRotY, 0.05);
+                roseGroup.rotation.x = THREE.MathUtils.lerp(roseGroup.rotation.x, targetRotX, 0.05);
+            }
+
+            const pos = geometry.attributes.position.array;
+            const col = geometry.attributes.color.array;
+            const pulse = 1 + (heartCharge / 100) * 0.3 * Math.sin(time * 15);
+
+            for (let i = 0; i < TOTAL_COUNT; i++) {
+                const i3 = i * 3;
+                if (state === 'rose') {
+                    if (i < PETAL_COUNT) {
+                        pos[i3] = baseCoords[i3] * currentBloom * pulse;
+                        pos[i3 + 1] = (baseCoords[i3 + 1] + Math.sin(time + i * 0.01) * 0.02) * pulse;
+                        pos[i3 + 2] = baseCoords[i3 + 2] * currentBloom * pulse;
+                    } else {
+                        pos[i3] = baseCoords[i3] + Math.sin(time + baseCoords[i3 + 1]) * 0.05;
+                        pos[i3 + 1] = baseCoords[i3 + 1];
+                        pos[i3 + 2] = baseCoords[i3 + 2];
+                    }
+                } else {
+                    pos[i3] += (pos[i3] * 0.05) + velocities[i3];
+                    pos[i3 + 1] += (pos[i3 + 1] * 0.05) + velocities[i3 + 1];
+                    pos[i3 + 2] += (pos[i3 + 2] * 0.05) + velocities[i3 + 2];
+                    col[i3] += (1.0 - col[i3]) * 0.05;
+                    col[i3 + 1] += (0.8 - col[i3 + 1]) * 0.05;
+                    col[i3 + 2] += (0.3 - col[i3 + 2]) * 0.05;
+                    material.size = 0.09;
+                }
+            }
+            geometry.attributes.position.needsUpdate = true;
+            geometry.attributes.color.needsUpdate = true;
+            camera.lookAt(0, 0, 0);
+            renderer.render(scene, camera);
+        }
+
+        initTracking();
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+
+</html>
