@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Barbie's Magic Sticker Studio ✨📸</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Montserrat:wght@400;700;900&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --barbie-pink: #ff69b4;
+            --hot-pink: #e91e63;
+            --soft-pink: #ffb6c1;
+            --cream: #fff5f7;
+            --gold: #ffd700;
+            --white-glass: rgba(255, 255, 255, 0.45);
+            --border-glass: rgba(255, 255, 255, 0.6);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background-color: #000;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        #app-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+
+        #webcam {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+            z-index: 0;
+        }
+
+        #canvas-layer {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        /* Pointer/Sticker Preview */
+        #sticker-preview {
+            position: fixed;
+            pointer-events: none;
+            z-index: 100;
+            transform: translate(-50%, -50%);
+            font-size: 80px;
+            display: none;
+            filter: drop-shadow(0 0 15px rgba(255, 105, 180, 0.6));
+            opacity: 0.75;
+            transition: transform 0.1s ease, font-size 0.05s linear, opacity 0.2s ease;
+        }
+
+        #sticker-preview.pinching {
+            opacity: 1.0;
+            filter: drop-shadow(0 0 25px var(--hot-pink));
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        /* Targeting Cursor */
+        #targeting-cursor {
+            position: fixed;
+            width: 40px;
+            height: 40px;
+            border: 2px dashed rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            z-index: 99;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            display: none;
+        }
+
+        #targeting-cursor::before,
+        #targeting-cursor::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        #targeting-cursor::before {
+            width: 100%;
+            height: 1px;
+            top: 50%;
+            left: 0;
+        }
+
+        #targeting-cursor::after {
+            height: 100%;
+            width: 1px;
+            left: 50%;
+            top: 0;
+        }
+
+        /* UI Elements */
+        #ui-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 20;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 30px;
+        }
+
+        header {
+            text-align: center;
+        }
+
+        .barbie-logo {
+            font-family: 'Dancing Script', cursive;
+            font-size: 5rem;
+            color: white;
+            text-shadow: 3px 3px 0px var(--hot-pink), 0 0 30px rgba(255, 255, 255, 1);
+            margin-bottom: -15px;
+        }
+
+        .subtitle {
+            color: white;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            font-size: 1.1rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        #bottom-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            pointer-events: none;
+        }
+
+        #sticker-menu {
+            pointer-events: auto;
+            background: var(--white-glass);
+            backdrop-filter: blur(25px);
+            border: 2px solid var(--border-glass);
+            border-radius: 40px;
+            padding: 15px 25px;
+            display: flex;
+            gap: 15px;
+            box-shadow: 0 15px 45px rgba(255, 105, 180, 0.3);
+        }
+
+        .sticker-option {
+            font-size: 35px;
+            cursor: pointer;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .sticker-option.active {
+            border-color: var(--barbie-pink);
+            transform: scale(1.15) rotate(10deg);
+            box-shadow: 0 10px 25px rgba(255, 105, 180, 0.5);
+        }
+
+        .action-btns {
+            pointer-events: auto;
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            border: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+
+        .btn-clear {
+            background: white;
+            color: var(--hot-pink);
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, var(--barbie-pink), var(--hot-pink));
+            color: white;
+            box-shadow: 0 12px 30px rgba(255, 105, 180, 0.5);
+        }
+
+        #status-bar {
+            color: white;
+            font-weight: 800;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            font-size: 1.1rem;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 5px 20px;
+            border-radius: 20px;
+            backdrop-filter: blur(5px);
+        }
+
+        /* Welcome Screen */
+        #welcome-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: radial-gradient(circle at center, #fff5f7, #ffdeeb);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .welcome-card {
+            background: white;
+            padding: 60px;
+            border-radius: 50px;
+            text-align: center;
+            box-shadow: 0 40px 100px rgba(255, 105, 180, 0.3);
+            max-width: 90%;
+            border: 8px solid var(--soft-pink);
+        }
+
+        .heart-loader {
+            width: 70px;
+            height: 70px;
+            background-color: var(--barbie-pink);
+            position: relative;
+            transform: rotate(45deg);
+            animation: pulse 1.2s infinite;
+            margin: 0 auto 40px auto;
+        }
+
+        .heart-loader::before,
+        .heart-loader::after {
+            content: "";
+            width: 70px;
+            height: 70px;
+            background-color: var(--barbie-pink);
+            border-radius: 50%;
+            position: absolute;
+        }
+
+        .heart-loader::before {
+            top: -35px;
+            left: 0;
+        }
+
+        .heart-loader::after {
+            left: -35px;
+            top: 0;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.9) rotate(45deg);
+            }
+
+            50% {
+                transform: scale(1.1) rotate(45deg);
+            }
+
+            100% {
+                transform: scale(0.9) rotate(45deg);
+            }
+        }
+
+        .start-btn {
+            background: linear-gradient(135deg, var(--barbie-pink), var(--hot-pink));
+            color: white;
+            border: none;
+            padding: 22px 65px;
+            border-radius: 50px;
+            font-weight: 900;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app-container">
+        <video id="webcam" autoplay playsinline muted></video>
+        <canvas id="canvas-layer"></canvas>
+        <div id="targeting-cursor"></div>
+        <div id="sticker-preview">👑</div>
+
+        <div id="ui-overlay">
+            <header>
+                <h1 class="barbie-logo">Barbie</h1>
+                <p class="subtitle">Accurate Sticker Studio 🎯✨</p>
+            </header>
+
+            <div id="bottom-panel">
+                <div id="status-bar">PINCH EXACTLY TO GRAB! 🎯💖</div>
+
+                <div id="sticker-menu">
+                    <div class="sticker-option active" data-char="👑">👑</div>
+                    <div class="sticker-option" data-char="💗">💗</div>
+                    <div class="sticker-option" data-char="💎">💎</div>
+                    <div class="sticker-option" data-char="👜">👜</div>
+                    <div class="sticker-option" data-char="🎀">🎀</div>
+                    <div class="sticker-option" data-char="💅">💅</div>
+                    <div class="sticker-option" data-char="👗">👗</div>
+                    <div class="sticker-option" data-char="💄">💄</div>
+                </div>
+
+                <div class="action-btns">
+                    <button class="btn btn-clear" id="btn-clear">Reset Magic 🧹</button>
+                    <button class="btn btn-save" id="btn-save">Save Magic 🎀</button>
+                </div>
+                <!-- Discrete link to existing project -->
+                <a href="index.html"
+                    style="color: rgba(255,255,255,0.4); text-decoration: none; font-size: 0.7rem; margin-top: 10px; pointer-events: auto;">Return
+                    to Home 💖</a>
+            </div>
+        </div>
+
+        <div id="welcome-screen">
+            <div class="welcome-card">
+                <div class="heart-loader"></div>
+                <h2>Precision Sticker Magic ✨🎯</h2>
+                <p>High-accuracy tracking for the perfect design!</p>
+                <button class="start-btn" id="start-btn">READY! 🎀</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/vision_bundle.mjs";
+
+        const state = {
+            video: document.getElementById('webcam'),
+            canvas: document.getElementById('canvas-layer'),
+            preview: document.getElementById('sticker-preview'),
+            cursor: document.getElementById('targeting-cursor'),
+            ctx: null,
+            handLandmarker: null,
+            placedStickers: [],
+            magicParticles: [],
+            activeSticker: '👑',
+            isPinching: false,
+            currentSize: 80,
+
+            // Smoothing variables
+            smoothedX: 0,
+            smoothedY: 0,
+            emaFactor: 0.35, // Smoothing factor (lower = smoother but more lag)
+
+            ready: false
+        };
+
+        const UI = {
+            status: document.getElementById('status-bar'),
+            options: document.querySelectorAll('.sticker-option'),
+            btnClear: document.getElementById('btn-clear'),
+            btnSave: document.getElementById('btn-save'),
+            startBtn: document.getElementById('start-btn'),
+            welcome: document.getElementById('welcome-screen'),
+        };
+
+        class Sparkle {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.size = Math.random() * 20 + 10;
+                this.life = 1.0;
+                this.vx = (Math.random() - 0.5) * 10;
+                this.vy = (Math.random() - 0.5) * 10;
+                this.char = ['⭐', '✨', '💖'][Math.floor(Math.random() * 3)];
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.life -= 0.05; }
+            draw(ctx) {
+                ctx.globalAlpha = this.life;
+                ctx.font = `${this.size}px Arial`;
+                ctx.fillText(this.char, this.x - this.size / 2, this.y + this.size / 2);
+            }
+        }
+
+        async function init() {
+            state.ctx = state.canvas.getContext('2d');
+            resize();
+            window.addEventListener('resize', resize);
+
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+            state.handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task", delegate: "GPU" },
+                runningMode: "VIDEO", numHands: 2
+            });
+        }
+
+        function resize() { state.canvas.width = window.innerWidth; state.canvas.height = window.innerHeight; }
+
+        async function startApp() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720, facingMode: "user" } });
+                state.video.srcObject = stream;
+                state.video.onloadedmetadata = () => {
+                    UI.welcome.classList.add('hidden');
+                    state.preview.style.display = 'block';
+                    state.cursor.style.display = 'block';
+                    requestAnimationFrame(loop);
+                };
+            } catch (err) { alert("Camera Access Required 🎀"); }
+        }
+
+        function loop() {
+            state.ctx.clearRect(0, 0, state.canvas.width, state.canvas.height);
+
+            if (state.handLandmarker && state.video.readyState >= 2) {
+                const results = state.handLandmarker.detectForVideo(state.video, performance.now());
+
+                if (results.landmarks.length > 0) {
+                    state.preview.style.display = 'block';
+                    state.cursor.style.display = 'block';
+
+                    const mainHand = results.landmarks[0];
+                    const index = mainHand[8];
+                    const thumb = mainHand[4];
+
+                    // Calculate Midpoint for Accuracy
+                    const midX = (index.x + thumb.x) / 2;
+                    const midY = (index.y + thumb.y) / 2;
+
+                    // Apply Smoothing (EMA)
+                    const targetX = (1 - midX) * state.canvas.width;
+                    const targetY = midY * state.canvas.height;
+
+                    if (state.smoothedX === 0) {
+                        state.smoothedX = targetX;
+                        state.smoothedY = targetY;
+                    } else {
+                        state.smoothedX = state.smoothedX + state.emaFactor * (targetX - state.smoothedX);
+                        state.smoothedY = state.smoothedY + state.emaFactor * (targetY - state.smoothedY);
+                    }
+
+                    // Update UI elements
+                    state.preview.style.left = `${state.smoothedX}px`;
+                    state.preview.style.top = `${state.smoothedY}px`;
+                    state.cursor.style.left = `${state.smoothedX}px`;
+                    state.cursor.style.top = `${state.smoothedY}px`;
+
+                    // Pinch logic
+                    const dist = Math.hypot(index.x - thumb.x, index.y - thumb.y);
+                    const pinching = dist < 0.045;
+
+                    // Scaling check (2 hands)
+                    if (results.landmarks.length === 2) {
+                        const secondHand = results.landmarks[1];
+                        const sIndex = secondHand[8];
+                        const gap = Math.hypot(index.x - sIndex.x, index.y - sIndex.y);
+                        const rawSize = (gap - 0.1) / 0.5;
+                        state.currentSize = Math.max(40, Math.min(400, 40 + rawSize * 300));
+                        UI.status.innerText = "PRECISION SCALING... 🖐️↔️🖐️";
+                    } else {
+                        UI.status.innerText = pinching ? "GRABBED! MOVE TO PLACE 📍" : "TARGETING... PINCH TO GRAB 🎯";
+                    }
+
+                    state.preview.style.fontSize = `${state.currentSize}px`;
+
+                    if (pinching) {
+                        state.preview.classList.add('pinching');
+                        state.isPinching = true;
+                    } else if (state.isPinching) {
+                        // Place sticker
+                        state.placedStickers.push({
+                            x: state.smoothedX,
+                            y: state.smoothedY,
+                            char: state.activeSticker,
+                            size: state.currentSize
+                        });
+                        for (let i = 0; i < 15; i++) state.magicParticles.push(new Sparkle(state.smoothedX, state.smoothedY));
+                        state.isPinching = false;
+                        state.preview.classList.remove('pinching');
+                    }
+                } else {
+                    state.preview.style.display = 'none';
+                    state.cursor.style.display = 'none';
+                    UI.status.innerText = "WAITING FOR YOUR MAGIC HAND... 🤳✨";
+                }
+            }
+
+            drawItems();
+            requestAnimationFrame(loop);
+        }
+
+        function drawItems() {
+            state.ctx.globalAlpha = 1.0;
+            state.placedStickers.forEach(s => {
+                state.ctx.shadowBlur = 10; state.ctx.shadowColor = "rgba(255,105,180,0.4)";
+                state.ctx.font = `${s.size}px Arial`;
+                state.ctx.fillText(s.char, s.x - s.size / 2, s.y + s.size / 2);
+            });
+            state.ctx.shadowBlur = 0;
+
+            for (let i = state.magicParticles.length - 1; i >= 0; i--) {
+                const p = state.magicParticles[i];
+                p.update();
+                if (p.life <= 0) state.magicParticles.splice(i, 1);
+                else p.draw(state.ctx);
+            }
+        }
+
+        // --- UI ---
+        UI.startBtn.onclick = startApp;
+        UI.btnClear.onclick = () => { state.placedStickers = []; UI.status.innerText = "STARTING FRESH! ✨"; };
+        UI.options.forEach(opt => {
+            opt.onclick = () => {
+                UI.options.forEach(o => o.classList.remove('active'));
+                opt.classList.add('active');
+                state.activeSticker = opt.dataset.char;
+                state.preview.innerText = state.activeSticker;
+            };
+        });
+
+        UI.btnSave.onclick = async () => {
+            UI.status.innerText = "SAVING PRECISION ART... 🎀";
+            const snap = document.createElement('canvas');
+            snap.width = state.canvas.width; snap.height = state.canvas.height;
+            const sc = snap.getContext('2d');
+
+            sc.save();
+            sc.translate(snap.width, 0); sc.scale(-1, 1);
+            sc.drawImage(state.video, 0, 0, snap.width, snap.height);
+            sc.restore();
+
+            state.placedStickers.forEach(s => {
+                sc.font = `${s.size}px Arial`;
+                sc.fillText(s.char, s.x - s.size / 2, s.y + s.size / 2);
+            });
+
+            const link = document.createElement('a');
+            link.download = `Barbie_Precise_Memory_${Date.now()}.png`;
+            link.href = snap.toDataURL('image/png');
+            link.click();
+            UI.status.innerText = "SAVED! YOU'RE A DESIGN GENIUS! ✨👑";
+        };
+
+        init();
+    </script>
+</body>
+
+</html>
