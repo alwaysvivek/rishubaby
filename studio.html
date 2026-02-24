@@ -431,8 +431,8 @@
             // Debounce/State variables
             pinchFrames: 0,
             isGrabbed: false,
-            pinchThreshold: 3, // Frames to hold before grabbing
-            releaseThreshold: 2, // Frames to hold open before placing
+            pinchThreshold: 2, // Quicker grab (2 frames)
+            releaseThreshold: 2, // Stable release
             releaseCount: 0,
 
             ready: false
@@ -528,7 +528,7 @@
                     state.cursor.style.top = `${state.smoothedY}px`;
 
                     const dist = Math.hypot(index.x - thumb.x, index.y - thumb.y);
-                    const pinchingNow = dist < 0.045;
+                    const pinchingNow = dist < 0.055; // Relaxed pinch threshold
 
                     // Stable Pinch Logic (Pick and Place)
                     if (pinchingNow) {
@@ -577,6 +577,19 @@
 
                     state.preview.style.fontSize = `${state.currentSize}px`;
                 } else {
+                    // Hand lost - If we were grabbing, place it at last known smooth position
+                    if (state.isGrabbed) {
+                        state.placedStickers.push({
+                            x: state.smoothedX,
+                            y: state.smoothedY,
+                            char: state.activeSticker,
+                            size: state.currentSize
+                        });
+                        for (let i = 0; i < 15; i++) state.magicParticles.push(new Sparkle(state.smoothedX, state.smoothedY));
+                        state.isGrabbed = false;
+                        state.preview.classList.remove('pinching');
+                    }
+
                     state.preview.style.display = 'none';
                     state.cursor.style.display = 'none';
                     UI.status.innerText = "WAITING FOR YOUR MAGIC HAND... 🤳✨";
