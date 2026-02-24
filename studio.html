@@ -309,6 +309,53 @@
         .hidden {
             display: none !important;
         }
+
+        /* Mobile Optimization */
+        @media (max-width: 600px) {
+            .barbie-logo {
+                font-size: 3rem;
+            }
+
+            .subtitle {
+                font-size: 0.8rem;
+                letter-spacing: 2px;
+            }
+
+            #sticker-menu {
+                padding: 10px 15px;
+                gap: 10px;
+                border-radius: 30px;
+            }
+
+            .sticker-option {
+                width: 50px;
+                height: 50px;
+                font-size: 28px;
+            }
+
+            /* Show only first 4 stickers on mobile */
+            .sticker-option:nth-child(n+5) {
+                display: none;
+            }
+
+            .btn {
+                padding: 12px 25px;
+                font-size: 0.8rem;
+            }
+
+            #status-bar {
+                font-size: 0.9rem;
+                padding: 5px 15px;
+            }
+
+            header {
+                padding: 15px;
+            }
+
+            #ui-overlay {
+                padding: 15px;
+            }
+        }
     </style>
 </head>
 
