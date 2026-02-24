@@ -428,6 +428,13 @@
             smoothedY: 0,
             emaFactor: 0.35, // Smoothing factor (lower = smoother but more lag)
 
+            // Debounce/State variables
+            pinchFrames: 0,
+            isGrabbed: false,
+            pinchThreshold: 3, // Frames to hold before grabbing
+            releaseThreshold: 2, // Frames to hold open before placing
+            releaseCount: 0,
+
             ready: false
         };
 
@@ -520,9 +527,41 @@
                     state.cursor.style.left = `${state.smoothedX}px`;
                     state.cursor.style.top = `${state.smoothedY}px`;
 
-                    // Pinch logic
                     const dist = Math.hypot(index.x - thumb.x, index.y - thumb.y);
-                    const pinching = dist < 0.045;
+                    const pinchingNow = dist < 0.045;
+
+                    // Stable Pinch Logic (Pick and Place)
+                    if (pinchingNow) {
+                        state.pinchFrames++;
+                        state.releaseCount = 0; // Reset release timer
+
+                        // If held long enough, consider it a "Grab"
+                        if (state.pinchFrames >= state.pinchThreshold) {
+                            state.isGrabbed = true;
+                            state.preview.classList.add('pinching');
+                        }
+                    } else {
+                        state.pinchFrames = 0; // Reset pinch timer
+
+                        if (state.isGrabbed) {
+                            state.releaseCount++;
+                            // If released long enough (or definitely open), confirm placement
+                            if (state.releaseCount >= state.releaseThreshold || dist > 0.08) {
+                                // Place sticker
+                                state.placedStickers.push({
+                                    x: state.smoothedX,
+                                    y: state.smoothedY,
+                                    char: state.activeSticker,
+                                    size: state.currentSize
+                                });
+                                for (let i = 0; i < 15; i++) state.magicParticles.push(new Sparkle(state.smoothedX, state.smoothedY));
+
+                                state.isGrabbed = false;
+                                state.releaseCount = 0;
+                                state.preview.classList.remove('pinching');
+                            }
+                        }
+                    }
 
                     // Scaling check (2 hands)
                     if (results.landmarks.length === 2) {
@@ -533,26 +572,10 @@
                         state.currentSize = Math.max(40, Math.min(400, 40 + rawSize * 300));
                         UI.status.innerText = "PRECISION SCALING... 🖐️↔️🖐️";
                     } else {
-                        UI.status.innerText = pinching ? "GRABBED! MOVE TO PLACE 📍" : "TARGETING... PINCH TO GRAB 🎯";
+                        UI.status.innerText = state.isGrabbed ? "GRABBED! MOVE TO PLACE 📍" : "TARGETING... PINCH TO GRAB 🎯";
                     }
 
                     state.preview.style.fontSize = `${state.currentSize}px`;
-
-                    if (pinching) {
-                        state.preview.classList.add('pinching');
-                        state.isPinching = true;
-                    } else if (state.isPinching) {
-                        // Place sticker
-                        state.placedStickers.push({
-                            x: state.smoothedX,
-                            y: state.smoothedY,
-                            char: state.activeSticker,
-                            size: state.currentSize
-                        });
-                        for (let i = 0; i < 15; i++) state.magicParticles.push(new Sparkle(state.smoothedX, state.smoothedY));
-                        state.isPinching = false;
-                        state.preview.classList.remove('pinching');
-                    }
                 } else {
                     state.preview.style.display = 'none';
                     state.cursor.style.display = 'none';
