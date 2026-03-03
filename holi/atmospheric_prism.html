@@ -352,6 +352,41 @@
             opacity: 0;
         }
 
+        /* === Orb Guide === */
+        .orb-guide {
+            position: fixed;
+            bottom: 3.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 300;
+            font-size: 0.6rem;
+            color: rgba(255, 255, 255, 0);
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            text-align: center;
+            transition: color 1.5s ease 3.5s;
+            white-space: nowrap;
+        }
+
+        body.lit .orb-guide {
+            color: rgba(255, 255, 255, 0.25);
+        }
+
+        body.complete .orb-guide {
+            opacity: 0;
+        }
+
+        @media (max-width: 768px) {
+            .orb-guide {
+                bottom: 2.5rem;
+                font-size: 0.5rem;
+                white-space: normal;
+                max-width: 80vw;
+            }
+        }
+
         /* === Heart Finale === */
         .finale-overlay {
             position: fixed;
@@ -508,6 +543,7 @@
     <div class="click-hint" id="clickHint">click the light to begin</div>
 
     <div class="progress-indicator" id="progressIndicator">0 / 7 wavelengths discovered</div>
+    <div class="orb-guide">tap each color orb to study its wavelength — yay u're a physics student now ✨</div>
 
     <div class="finale-overlay" id="finaleOverlay">
         <div class="finale-heart">
@@ -637,7 +673,7 @@
             // Mobile: fan rays in a full arc around the photo so orbs are well-spaced
             // Desktop: fan rays to the right side only
             const fanAngle = isMobile ? 300 : 50;
-            const startAngle = isMobile ? -150 : -25; // degrees from horizontal-right
+            const startAngle = isMobile ? -130 : -25; // degrees from horizontal-right
 
             SPECTRUM.forEach((spec, i) => {
                 const angleDeg = startAngle + (fanAngle / (count - 1)) * i;
