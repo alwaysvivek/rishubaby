@@ -80,8 +80,8 @@
         .photo-container {
             position: relative;
             z-index: 3;
-            width: 200px;
-            height: 200px;
+            width: clamp(140px, 30vw, 200px);
+            height: clamp(140px, 30vw, 200px);
             border-radius: 50%;
             overflow: hidden;
             cursor: pointer;
@@ -136,14 +136,22 @@
 
         .orb {
             position: absolute;
-            width: 18px;
-            height: 18px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             opacity: 0;
             transform: scale(0);
             transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
             pointer-events: auto;
             cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        @media (min-width: 769px) {
+            .orb {
+                width: 18px;
+                height: 18px;
+            }
         }
 
         .orb.visible {
@@ -247,13 +255,24 @@
             z-index: 15;
             font-family: 'JetBrains Mono', monospace;
             font-weight: 300;
-            font-size: 0.65rem;
+            font-size: clamp(0.5rem, 1.5vw, 0.65rem);
             color: rgba(255, 255, 255, 0.2);
             line-height: 1.9;
             letter-spacing: 0.02em;
             opacity: 0;
             transition: opacity 1s ease;
-            max-width: 400px;
+            max-width: min(400px, 60vw);
+        }
+
+        @media (max-width: 768px) {
+            .system-log {
+                top: auto;
+                bottom: 80px;
+                left: 10px;
+                right: 10px;
+                max-width: none;
+                text-align: center;
+            }
         }
 
         body.lit .system-log {
@@ -388,6 +407,44 @@
             color: rgba(255, 255, 255, 0.6);
         }
 
+        .finale-continue {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 200;
+            font-size: 0.65rem;
+            color: rgba(255, 255, 255, 0);
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            margin-top: 2rem;
+            transition: color 3s ease 3s;
+        }
+
+        body.complete .finale-continue {
+            color: rgba(255, 255, 255, 0.25);
+        }
+
+        /* === Mobile Responsiveness === */
+        @media (max-width: 768px) {
+            .click-hint {
+                font-size: 0.65rem;
+                bottom: 2rem;
+            }
+
+            .progress-indicator {
+                font-size: 0.55rem;
+                bottom: 1rem;
+            }
+
+            .meaning-card {
+                max-width: 240px;
+                padding: 1rem 1.2rem;
+                font-size: 0.9rem;
+            }
+
+            .meaning-card .meaning-text {
+                font-size: 1rem;
+            }
+        }
+
         /* === Beam animation override === */
         .beam-path {
             stroke-dasharray: 2000;
@@ -456,7 +513,8 @@
         <div class="finale-heart">
             <canvas id="heartCanvas" width="240" height="240"></canvas>
         </div>
-        <div class="finale-message">"I will always choose your shade."</div>
+        <div class="finale-message">"Happy Holi ❤️ my rainbow"</div>
+        <div class="finale-continue">taking you to play with colors…</div>
     </div>
 
     <script>
@@ -464,13 +522,13 @@
         //  SPECTRUM CONFIG
         // ============================================================
         const SPECTRUM = [
-            { color: '#ff4444', name: 'Red', meaning: 'The passion and love you give — raw, unfiltered, fearless.' },
-            { color: '#ff8c00', name: 'Orange', meaning: 'The warmth of your laughter that turns my coldest days golden.' },
-            { color: '#ffd700', name: 'Yellow', meaning: 'I see this in your smile — my personal sun, always rising.' },
+            { color: '#ff4444', name: 'Red', meaning: 'Your fire — your anger, your presence that fuels me. Without it, I have nothing to burn for.' },
+            { color: '#ff8c00', name: 'Orange', meaning: 'The warmth of your silly little things — every one of them unbearably cute.' },
+            { color: '#ffd700', name: 'Yellow', meaning: 'Your smile — my recharge, my reset, my reason to keep going.' },
             { color: '#4dff4d', name: 'Green', meaning: 'The growth we nurture together, rooted deeper every day.' },
-            { color: '#4dc9f6', name: 'Blue', meaning: 'The calm you bring to my chaos — my stillest ocean.' },
+            { color: '#4dc9f6', name: 'Blue', meaning: 'My stabilizer — you check my anger before it burns anyone, you keep me safe from myself.' },
             { color: '#6a5acd', name: 'Indigo', meaning: 'The depth I see even in our hardest moments — beautiful and real.' },
-            { color: '#9b59b6', name: 'Violet', meaning: 'Our strength — rare, unbreakable, and ours alone.' },
+            { color: '#9b59b6', name: 'Violet', meaning: 'Our strength — rare, unbreakable, forged in every fight we survive together.' },
         ];
 
         // ============================================================
@@ -536,7 +594,7 @@
             orbsContainer.innerHTML = '';
             orbElements = [];
 
-            const photoR = 100; // radius of photo
+            const photoR = Math.min(100, W * 0.15); // radius of photo, responsive
             // Beam: from left edge to photo center
             const beamStartX = 0;
             const beamEndX = cx - photoR - 10;
@@ -593,8 +651,9 @@
                 // Create orb at end of ray
                 const orb = document.createElement('div');
                 orb.className = 'orb';
-                orb.style.left = (endX - 9) + 'px';
-                orb.style.top = (endY - 9) + 'px';
+                const orbSize = W < 769 ? 14 : 9;
+                orb.style.left = (endX - orbSize) + 'px';
+                orb.style.top = (endY - orbSize) + 'px';
                 orb.style.background = spec.color;
                 orb.style.color = spec.color;
                 orb.dataset.index = i;
@@ -608,6 +667,12 @@
                     e.stopPropagation();
                     revealColor(i, orb);
                 });
+                // Touch support for mobile
+                orb.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    revealColor(i, orb);
+                }, { passive: false });
 
                 orbsContainer.appendChild(orb);
                 orbElements.push(orb);
@@ -639,15 +704,21 @@
             cardText.textContent = `"${spec.meaning}"`;
             meaningCard.style.borderColor = hexToRgba(spec.color, 0.15);
 
-            // Position near the orb
+            // Position near the orb (mobile: center bottom)
             const rect = orbEl.getBoundingClientRect();
-            let left = rect.right + 16;
-            let top = rect.top - 20;
+            let left, top;
 
-            // Keep in bounds
-            if (left + 300 > W) left = rect.left - 316;
-            if (top < 10) top = 10;
-            if (top + 120 > H) top = H - 130;
+            if (W < 769) {
+                // Mobile: center card at bottom
+                left = Math.max(10, (W - 240) / 2);
+                top = H - 160;
+            } else {
+                left = rect.right + 16;
+                top = rect.top - 20;
+                if (left + 300 > W) left = rect.left - 316;
+                if (top < 10) top = 10;
+                if (top + 120 > H) top = H - 130;
+            }
 
             meaningCard.style.left = left + 'px';
             meaningCard.style.top = top + 'px';
@@ -697,6 +768,11 @@
         function triggerFinale() {
             document.body.classList.add('complete');
             drawHeartGlow();
+
+            // Redirect to gesture edition after enjoying the finale
+            setTimeout(() => {
+                window.location.href = 'gesture.html';
+            }, 5000);
         }
 
         function drawHeartGlow() {
