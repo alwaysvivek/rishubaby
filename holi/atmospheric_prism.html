@@ -513,7 +513,7 @@
         <div class="finale-heart">
             <canvas id="heartCanvas" width="240" height="240"></canvas>
         </div>
-        <div class="finale-message">"Happy Holi ❤️ my rainbow"</div>
+        <div class="finale-message">"Happy Holi <span style="color:#ff4d6d">&hearts;</span> my rainbow"</div>
         <div class="finale-continue">taking you to play with colors…</div>
     </div>
 
@@ -628,21 +628,26 @@
             beam.style.opacity = '0.7';
             svg.appendChild(beam);
 
-            // Colored rays fanning out from right side of photo
-            const rayStartX = cx + photoR + 10;
-            const rayLength = Math.min(W * 0.32, 350);
-            const fanAngle = 50; // total fan degrees
-            const halfFan = fanAngle / 2;
+            // Colored rays fanning out from photo
+            const isMobile = W < 769;
+            const rayLength = isMobile ? Math.min(W * 0.28, 200) : Math.min(W * 0.32, 350);
             const count = SPECTRUM.length;
 
+            // Mobile: fan rays in a full arc around the photo so orbs are well-spaced
+            // Desktop: fan rays to the right side only
+            const fanAngle = isMobile ? 300 : 50;
+            const startAngle = isMobile ? -150 : -25; // degrees from horizontal-right
+
             SPECTRUM.forEach((spec, i) => {
-                const angleDeg = -halfFan + (fanAngle / (count - 1)) * i;
+                const angleDeg = startAngle + (fanAngle / (count - 1)) * i;
                 const angleRad = (angleDeg * Math.PI) / 180;
 
-                const endX = rayStartX + Math.cos(angleRad) * rayLength;
-                const endY = cy + Math.sin(angleRad) * rayLength;
+                const rayStartX = cx + Math.cos(angleRad) * (photoR + 10);
+                const rayStartY = cy + Math.sin(angleRad) * (photoR + 10);
+                const endX = cx + Math.cos(angleRad) * (photoR + 10 + rayLength);
+                const endY = cy + Math.sin(angleRad) * (photoR + 10 + rayLength);
 
-                const ray = makeLine(rayStartX, cy, endX, endY, spec.color, 2, 'ray-line');
+                const ray = makeLine(rayStartX, rayStartY, endX, endY, spec.color, 2, 'ray-line');
                 ray.style.filter = 'url(#colorGlow)';
                 ray.style.opacity = '0.6';
                 ray.style.animationDelay = `${1.5 + i * 0.15}s`;
