@@ -861,16 +861,15 @@
                     ctx.closePath();
 
                     if (pass === 0) {
-                        // Rainbow gradient fill
-                        const gradient = ctx.createLinearGradient(centerX - 60, centerY - 60, centerX + 60, centerY + 60);
-                        SPECTRUM.forEach((s, i) => {
-                            gradient.addColorStop(i / (SPECTRUM.length - 1), hexToRgba(s.color, 0.85));
-                        });
+                        // Solid red/pink heart
+                        const gradient = ctx.createRadialGradient(centerX, centerY - 10, 10, centerX, centerY - 10, 70);
+                        gradient.addColorStop(0, 'rgba(255, 77, 109, 0.95)');
+                        gradient.addColorStop(0.6, 'rgba(220, 40, 80, 0.9)');
+                        gradient.addColorStop(1, 'rgba(180, 20, 60, 0.85)');
                         ctx.fillStyle = gradient;
                         ctx.fill();
                     } else {
-                        const ci = Math.floor((t * 2 + pass) % SPECTRUM.length);
-                        ctx.fillStyle = hexToRgba(SPECTRUM[ci].color, alpha);
+                        ctx.fillStyle = `rgba(255, 77, 109, ${alpha})`;
                         ctx.filter = `blur(${pass * 6}px)`;
                         ctx.fill();
                         ctx.filter = 'none';
