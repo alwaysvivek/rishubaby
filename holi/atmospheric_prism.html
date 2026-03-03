@@ -667,8 +667,9 @@
 
             // Orbs in a clean circle with short connectors (all screen sizes)
             const count = SPECTRUM.length;
-            const orbitRadius = photoR + (W < 769 ? 55 : 100);
-            const stubLength = W < 769 ? 30 : 50;
+            const maxOrbit = Math.min(W, H) / 2 - 40; // keep orbs within viewport
+            const orbitRadius = Math.min(photoR + (W < 769 ? 55 : 100), maxOrbit);
+            const stubLength = Math.min(W < 769 ? 30 : 50, orbitRadius - photoR - 10);
             const orbHalf = W < 769 ? 14 : 12;
 
             // Draw a subtle glowing orbit ring
