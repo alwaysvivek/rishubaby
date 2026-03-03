@@ -594,7 +594,8 @@
             orbsContainer.innerHTML = '';
             orbElements = [];
 
-            const photoR = Math.min(100, W * 0.15); // radius of photo, responsive
+            // Match CSS: clamp(140px, 30vw, 200px) → radius is half
+            const photoR = Math.max(70, Math.min(W * 0.15, 100));
             // Beam: from left edge to photo center
             const beamStartX = 0;
             const beamEndX = cx - photoR - 10;
