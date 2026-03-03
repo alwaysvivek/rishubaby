@@ -665,44 +665,54 @@
             beam.style.opacity = '0.7';
             svg.appendChild(beam);
 
-            // Orbs in a clean circle with short connectors (all screen sizes)
+            // Orbs in a circle connected by a rainbow light ring
             const count = SPECTRUM.length;
-            const maxOrbit = Math.min(W, H) / 2 - 40; // keep orbs within viewport
+            const maxOrbit = Math.min(W, H) / 2 - 40;
             const orbitRadius = Math.min(photoR + (W < 769 ? 55 : 100), maxOrbit);
-            const stubLength = Math.min(W < 769 ? 30 : 50, orbitRadius - photoR - 10);
             const orbHalf = W < 769 ? 14 : 12;
 
-            // Draw a subtle glowing orbit ring
-            const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            ring.setAttribute('cx', cx);
-            ring.setAttribute('cy', cy);
-            ring.setAttribute('r', orbitRadius);
-            ring.setAttribute('fill', 'none');
-            ring.setAttribute('stroke', 'rgba(255,255,255,0.06)');
-            ring.setAttribute('stroke-width', '1');
-            ring.setAttribute('stroke-dasharray', '4 8');
-            ring.setAttribute('class', 'ray-line');
-            ring.style.animationDelay = '1.5s';
-            svg.appendChild(ring);
+            // Draw rainbow ring — each segment colored by its spectrum color
+            for (let i = 0; i < count; i++) {
+                const startDeg = (360 / count) * i - 90;
+                const endDeg = (360 / count) * (i + 1) - 90;
+                const startRad = (startDeg * Math.PI) / 180;
+                const endRad = (endDeg * Math.PI) / 180;
+
+                const arc = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const x1 = cx + Math.cos(startRad) * orbitRadius;
+                const y1 = cy + Math.sin(startRad) * orbitRadius;
+                const x2 = cx + Math.cos(endRad) * orbitRadius;
+                const y2 = cy + Math.sin(endRad) * orbitRadius;
+
+                arc.setAttribute('d', `M ${x1} ${y1} A ${orbitRadius} ${orbitRadius} 0 0 1 ${x2} ${y2}`);
+                arc.setAttribute('fill', 'none');
+                arc.setAttribute('stroke', SPECTRUM[i].color);
+                arc.setAttribute('stroke-width', '1.5');
+                arc.setAttribute('stroke-linecap', 'round');
+                arc.setAttribute('opacity', '0.3');
+                arc.setAttribute('class', 'ray-line');
+                arc.style.animationDelay = `${1.5 + i * 0.12}s`;
+                arc.style.filter = 'url(#colorGlow)';
+                svg.appendChild(arc);
+            }
+
+            // Soft radial glow from photo toward orbs
+            const glowCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            glowCircle.setAttribute('cx', cx);
+            glowCircle.setAttribute('cy', cy);
+            glowCircle.setAttribute('r', orbitRadius * 0.7);
+            glowCircle.setAttribute('fill', 'none');
+            glowCircle.setAttribute('stroke', 'rgba(255,255,255,0.04)');
+            glowCircle.setAttribute('stroke-width', orbitRadius * 0.5);
+            glowCircle.setAttribute('class', 'ray-line');
+            glowCircle.style.animationDelay = '1.8s';
+            svg.appendChild(glowCircle);
 
             SPECTRUM.forEach((spec, i) => {
-                // Evenly space around full circle, starting from top
                 const angleDeg = (360 / count) * i - 90;
                 const angleRad = (angleDeg * Math.PI) / 180;
 
-                // Short connector from photo edge to orbit ring
-                const stubStartX = cx + Math.cos(angleRad) * (photoR + 6);
-                const stubStartY = cy + Math.sin(angleRad) * (photoR + 6);
-                const stubEndX = cx + Math.cos(angleRad) * (photoR + 6 + stubLength);
-                const stubEndY = cy + Math.sin(angleRad) * (photoR + 6 + stubLength);
-
-                const ray = makeLine(stubStartX, stubStartY, stubEndX, stubEndY, spec.color, 2, 'ray-line');
-                ray.style.filter = 'url(#colorGlow)';
-                ray.style.opacity = '0.6';
-                ray.style.animationDelay = `${1.5 + i * 0.15}s`;
-                svg.appendChild(ray);
-
-                // Orb at the orbit ring
+                // Orb on the ring
                 const orbX = cx + Math.cos(angleRad) * orbitRadius;
                 const orbY = cy + Math.sin(angleRad) * orbitRadius;
 
