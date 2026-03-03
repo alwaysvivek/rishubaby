@@ -665,119 +665,64 @@
             beam.style.opacity = '0.7';
             svg.appendChild(beam);
 
-            // Colored rays fanning out from photo
-            const isMobile = W < 769;
+            // Orbs in a clean circle with short connectors (all screen sizes)
             const count = SPECTRUM.length;
+            const orbitRadius = photoR + (W < 769 ? 55 : 100);
+            const stubLength = W < 769 ? 30 : 50;
+            const orbHalf = W < 769 ? 14 : 12;
 
-            if (isMobile) {
-                // === MOBILE: Orbs in a clean circle with short connectors ===
-                const orbitRadius = photoR + 55; // circle where orbs sit
-                const stubLength = 30; // short connector line from photo edge
+            // Draw a subtle glowing orbit ring
+            const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            ring.setAttribute('cx', cx);
+            ring.setAttribute('cy', cy);
+            ring.setAttribute('r', orbitRadius);
+            ring.setAttribute('fill', 'none');
+            ring.setAttribute('stroke', 'rgba(255,255,255,0.06)');
+            ring.setAttribute('stroke-width', '1');
+            ring.setAttribute('stroke-dasharray', '4 8');
+            ring.setAttribute('class', 'ray-line');
+            ring.style.animationDelay = '1.5s';
+            svg.appendChild(ring);
 
-                // Draw a subtle glowing orbit ring
-                const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                ring.setAttribute('cx', cx);
-                ring.setAttribute('cy', cy);
-                ring.setAttribute('r', orbitRadius);
-                ring.setAttribute('fill', 'none');
-                ring.setAttribute('stroke', 'rgba(255,255,255,0.06)');
-                ring.setAttribute('stroke-width', '1');
-                ring.setAttribute('stroke-dasharray', '4 8');
-                ring.setAttribute('class', 'ray-line');
-                ring.style.animationDelay = '1.5s';
-                svg.appendChild(ring);
+            SPECTRUM.forEach((spec, i) => {
+                // Evenly space around full circle, starting from top
+                const angleDeg = (360 / count) * i - 90;
+                const angleRad = (angleDeg * Math.PI) / 180;
 
-                SPECTRUM.forEach((spec, i) => {
-                    // Evenly space around full circle
-                    const angleDeg = (360 / count) * i - 90; // start from top
-                    const angleRad = (angleDeg * Math.PI) / 180;
+                // Short connector from photo edge to orbit ring
+                const stubStartX = cx + Math.cos(angleRad) * (photoR + 6);
+                const stubStartY = cy + Math.sin(angleRad) * (photoR + 6);
+                const stubEndX = cx + Math.cos(angleRad) * (photoR + 6 + stubLength);
+                const stubEndY = cy + Math.sin(angleRad) * (photoR + 6 + stubLength);
 
-                    // Short connector from photo edge
-                    const stubStartX = cx + Math.cos(angleRad) * (photoR + 6);
-                    const stubStartY = cy + Math.sin(angleRad) * (photoR + 6);
-                    const stubEndX = cx + Math.cos(angleRad) * (photoR + 6 + stubLength);
-                    const stubEndY = cy + Math.sin(angleRad) * (photoR + 6 + stubLength);
+                const ray = makeLine(stubStartX, stubStartY, stubEndX, stubEndY, spec.color, 2, 'ray-line');
+                ray.style.filter = 'url(#colorGlow)';
+                ray.style.opacity = '0.6';
+                ray.style.animationDelay = `${1.5 + i * 0.15}s`;
+                svg.appendChild(ray);
 
-                    const ray = makeLine(stubStartX, stubStartY, stubEndX, stubEndY, spec.color, 2, 'ray-line');
-                    ray.style.filter = 'url(#colorGlow)';
-                    ray.style.opacity = '0.6';
-                    ray.style.animationDelay = `${1.5 + i * 0.15}s`;
-                    svg.appendChild(ray);
+                // Orb at the orbit ring
+                const orbX = cx + Math.cos(angleRad) * orbitRadius;
+                const orbY = cy + Math.sin(angleRad) * orbitRadius;
 
-                    // Orb at the orbit ring
-                    const orbX = cx + Math.cos(angleRad) * orbitRadius;
-                    const orbY = cy + Math.sin(angleRad) * orbitRadius;
+                const orb = document.createElement('div');
+                orb.className = 'orb';
+                orb.style.left = (orbX - orbHalf) + 'px';
+                orb.style.top = (orbY - orbHalf) + 'px';
+                orb.style.background = spec.color;
+                orb.style.color = spec.color;
+                orb.dataset.index = i;
 
-                    const orb = document.createElement('div');
-                    orb.className = 'orb';
-                    orb.style.left = (orbX - 14) + 'px';
-                    orb.style.top = (orbY - 14) + 'px';
-                    orb.style.background = spec.color;
-                    orb.style.color = spec.color;
-                    orb.dataset.index = i;
+                setTimeout(() => orb.classList.add('visible'), 2000 + i * 200);
 
-                    setTimeout(() => orb.classList.add('visible'), 2000 + i * 200);
+                orb.addEventListener('mouseenter', () => showMeaning(i, orb));
+                orb.addEventListener('mouseleave', () => scheduleMeaningHide());
+                orb.addEventListener('click', (e) => { e.stopPropagation(); revealColor(i, orb); });
+                orb.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); revealColor(i, orb); }, { passive: false });
 
-                    orb.addEventListener('mouseenter', () => showMeaning(i, orb));
-                    orb.addEventListener('mouseleave', () => scheduleMeaningHide());
-                    orb.addEventListener('click', (e) => { e.stopPropagation(); revealColor(i, orb); });
-                    orb.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); revealColor(i, orb); }, { passive: false });
-
-                    orbsContainer.appendChild(orb);
-                    orbElements.push(orb);
-                });
-            } else {
-                // === DESKTOP: Classic prism refraction ===
-                const rayLength = Math.min(W * 0.32, 350);
-                const fanAngle = 50;
-                const startAngle = -25;
-
-                SPECTRUM.forEach((spec, i) => {
-                    const angleDeg = startAngle + (fanAngle / (count - 1)) * i;
-                    const angleRad = (angleDeg * Math.PI) / 180;
-
-                    const rayStartX = cx + photoR + 10;
-                    const rayStartY = cy;
-                    const endX = rayStartX + Math.cos(angleRad) * rayLength;
-                    const endY = rayStartY + Math.sin(angleRad) * rayLength;
-
-                    const ray = makeLine(rayStartX, rayStartY, endX, endY, spec.color, 2, 'ray-line');
-                    ray.style.filter = 'url(#colorGlow)';
-                    ray.style.opacity = '0.6';
-                    ray.style.animationDelay = `${1.5 + i * 0.15}s`;
-                    svg.appendChild(ray);
-
-                    // Create orb at end of ray
-                    const orb = document.createElement('div');
-                    orb.className = 'orb';
-                    const orbSize = W < 769 ? 14 : 9;
-                    orb.style.left = (endX - orbSize) + 'px';
-                    orb.style.top = (endY - orbSize) + 'px';
-                    orb.style.background = spec.color;
-                    orb.style.color = spec.color;
-                    orb.dataset.index = i;
-
-                    // Stagger the orb appearance
-                    setTimeout(() => orb.classList.add('visible'), 2000 + i * 200);
-
-                    orb.addEventListener('mouseenter', () => showMeaning(i, orb));
-                    orb.addEventListener('mouseleave', () => scheduleMeaningHide());
-                    orb.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        revealColor(i, orb);
-                    });
-                    // Touch support for mobile
-                    orb.addEventListener('touchstart', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        revealColor(i, orb);
-                    }, { passive: false });
-
-                    orbsContainer.appendChild(orb);
-                    orbElements.push(orb);
-                });
-
-            }
+                orbsContainer.appendChild(orb);
+                orbElements.push(orb);
+            });
         }
 
         function makeLine(x1, y1, x2, y2, color, width, className) {
